@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.5 $
- * @(#) $Id: entropic.c,v 1.5 2003/01/30 10:18:56 chongo Exp chongo $
+ * @(#) $Revision: 1.6 $
+ * @(#) $Id: entropic.c,v 1.6 2003/01/30 12:50:36 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -1197,10 +1197,10 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	/*
 	 * copy value to front of buffer
 	 */
-	inbuf_len = semi-equal;
+	inbuf_len = semi - equal - 1;
 	memmove(inbuf, equal+1, inbuf_len);
 	inbuf[inbuf_len] = '\0';
-	dbg(9, "inbuf after cookie trim: %s", inbuf);
+	dbg(9, "cookie tr: %s", inbuf);
     }
 
     /*
