@@ -1,9 +1,9 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision$
- * @(#) $Id$
- * @(#) $Source$
+ * @(#) $Revision: 1.2 $
+ * @(#) $Id: entropic.c,v 1.2 2003/01/28 09:57:39 chongo Exp chongo $
+ * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
  *
@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <errno.h>
 
 
 /*
@@ -147,14 +148,17 @@ struct bitslice {
  * usage
  */
 char *usage =
-	"[-v verbose] [-b bit_depth] input_file\n"
+	"[-v verbose] [-b bit_depth] [-r rec_size] input_file\n"
 	"\n"
 	"\t-v verbose		verbose level (def: 0 ==> none)\n"
 	"\t-b bit_depth		tally depth for each record bit (def: 12)\n"
+	"\t-r rec_size		read rec_size octet records (def: line mode)\n"
 	"\tinput_file\tfile to read records from (- ==> stdin)\n";
 char *program;			/* our name */
 int v_flag = 0;			/* verbosity level */
-int bit_depth = DEF_DEPTH;		/* tally depth, in bits, for each record bit */
+int bit_depth = DEF_DEPTH;	/* tally depth, in bits, for each record bit */
+int rec_size = 0;		/* > 0 ==> record size, 0 ==> line mode */
+int line_mode = 1;		/* 0 ==> read binary recs, 1 ==> read lines */
 
 
 /*
@@ -164,7 +168,13 @@ static tally_t *alloc_bittally(int depth);
 static struct bitslice *alloc_bitslice(int bitnum, int depth);
 static void record_bit(struct bitslice *slice, int value);
 static void dbg(int level, char *fmt, ...);
+static int read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line);
 
+/*
+ * misc globals and static values
+ */
+static tally_t recnum = 0;	/* current record number, starting with 0 */
+extern int errno;		/* last system error */
 
 
 /*
@@ -175,19 +185,27 @@ main(int argc, char *argv[])
 {
     extern char *optarg;	/* argument to current option */
     extern int optind;		/* first argv-element that is not an option */
+    char *filename;		/* name of input file, or - ==> stdin */
+    FILE *input;		/* stream from which to read records */
+    u_int8_t *raw_buf;		/* raw record input buffer */
+    int raw_len;		/* length of raw record in octets */
     int i;
 
     /*
      * parse args
      */
     program = argv[0];
-    while ((i = getopt(argc, argv, "v:b:")) != -1) {
+    while ((i = getopt(argc, argv, "v:b:r:")) != -1) {
 	switch (i) {
 	case 'v':	/* verbose level */
 	    v_flag = strtol(optarg, NULL, 0);
 	    break;
 	case 'b':	/* tally depth */
 	    bit_depth = strtol(optarg, NULL, 0);
+	    break;
+	case 'r':	/* binary record size */
+	    rec_size = strtol(optarg, NULL, 0);
+	    line_mode = 0;
 	    break;
 	default:
 	    fprintf(stderr, "usage: %s %s\n", program, usage);
@@ -199,6 +217,8 @@ main(int argc, char *argv[])
 	fprintf(stderr, "usage: %s %s\n", program, usage);
 	exit(2);
     }
+    filename = argv[optind];
+    dbg(1, "main: input file: %s", filename);
     if (bit_depth < 1) {
 	fprintf(stderr, "%s: -b bit_depth must be > 0\n", program);
 	exit(3);
@@ -208,9 +228,58 @@ main(int argc, char *argv[])
 	exit(4);
     }
     dbg(1, "main: bit_depth: %d", bit_depth);
+    if (line_mode == 0 && rec_size <= 0) {
+	fprintf(stderr, "%s: -r rec_size: %d must be > 0\n",
+		program, rec_size);
+	exit(5);
+    } else if (line_mode == 0) {
+	dbg(1, "main: binary record size: %d", rec_size);
+    } else {
+	rec_size = BUFSIZ;
+	dbg(1, "main: line mode of up to %d octets\n", rec_size);
+    }
 
-    /* XXX - testing */
-    (void) alloc_bitslice(5, bit_depth);
+    /*
+     * open the file containing records
+     */
+    if (strcmp(filename, "-") == 0) {
+	/* - means read from stdin */
+	input = stdin;
+    } else {
+	input = fopen(filename, "r");
+    }
+    if (input == NULL) {
+	fprintf(stderr, "%s: unable to open for reading: %s\n",
+		program, filename);
+	exit(6);
+    }
+
+    /*
+     * allocate raw buffer
+     */
+    raw_buf = (u_int8_t *)malloc(rec_size+1);
+    if (raw_buf == NULL) {
+	fprintf(stderr, "%s: failed to allocate raw buffer: %d octets\n",
+		program, rec_size+1);
+	exit(7);
+    }
+
+    /*
+     * process records, one at a time
+     */
+    recnum = 0;
+    do {
+
+	/*
+	 * read the next record
+	 */
+	raw_len = read_record(input, raw_buf, rec_size, line_mode);
+	if (raw_len < 0) {
+	    /* EOF or error */
+	    break;
+	}
+
+    } while (++recnum > 0);
 }
 
 
@@ -344,11 +413,10 @@ static void
 record_bit(struct bitslice *slice, int value)
 {
     int depth;		/* bit depth being processed */
+    int back;		/* number of bits going back into history */
     u_int32_t offset;	/* tally array offset */
     u_int32_t cur;	/* current bit values (for a given depth), xor-ed */
-    u_int32_t back;	/* bit values going back into history */
-    int h;		/* bits going back into history */
-    int i;
+    u_int32_t past;	/* bit values going back into history */
 
     /*
      * firewall
@@ -381,7 +449,7 @@ record_bit(struct bitslice *slice, int value)
     /*
      * process just the values
      */
-    for (i=1, offset=1; i <= bit_depth; ++i, offset <<= 1) {
+    for (depth=1, offset=1; depth <= bit_depth; ++depth, offset <<= 1) {
 
 	/* get the i-depth value - (offset-1) is an i-bit mask of 1's */
 	cur = (u_int32_t)slice->history ^ (offset-1);
@@ -390,16 +458,87 @@ record_bit(struct bitslice *slice, int value)
 	++slice->hist[0][offset + cur];
 
 	/* tally the i-depth value xored with previous history */
-	for (h=1; h <= BACK_HISTORY; ++h) {
+	for (back=1; back <= BACK_HISTORY; ++back) {
 
 	    /* get the i-depth value going back in history h bits */
-	    back = (u_int32_t)(slice->history >> h) ^ (offset-1);
+	    past = (u_int32_t)(slice->history >> back) ^ (offset-1);
 
 	    /* tally the i-depth value xored with history back h bits */
-	    ++slice->hist[h][offset + (cur^back)];
+	    ++slice->hist[back][offset + (cur^past)];
 	}
     }
     return;
+}
+
+
+/*
+ * read_record - read the next record from the input file stream
+ *
+ * given:
+ * 	input	    input file stream to read
+ * 	buf	    buffer of buf_size octets if raw_read, else BUFSIZ octets
+ * 	buf_size    size of raw buffer in octets, if raw_read
+ * 	read_line   1 ==> lines of up to BUFSIZ octets, 0 ==> binary reads
+ *
+ * return:
+ * 	number of octets read, or -1 ==> error
+ */
+static int
+read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
+{
+    int raw_len;		/* length of raw record in octets */
+
+    /*
+     * setup to read
+     */
+    clearerr(input);
+    errno = 0;
+
+    /*
+     * raw read
+     */
+    if (read_line == 0) {
+	raw_len = fread(buf, buf_size, 1, input);
+	if (ferror(input)) {
+	    dbg(1, "fread error: %s", strerror(errno));
+	} else if (feof(input)) {
+	    dbg(2, "EOF in fread");
+	} else if (raw_len <= 0) {
+	    dbg(1, "no EOF or error, but fread returned: %d", raw_len);
+	    raw_len = -1;	/* force error */
+	} else {
+	    dbg(3, "fread %d octets for record %lld",
+		    buf_size, (u_int64_t)recnum);
+	}
+
+    /*
+     * line based read
+     */
+    } else if (fgets(buf, BUFSIZ, input) == NULL) {
+	/* report fgets error */
+	if (ferror(input)) {
+	    dbg(1, "fgets error: %s", strerror(errno));
+	} else if (feof(input)) {
+	    dbg(2, "EOF in fgets");
+	}
+	raw_len = -1;
+    } else {
+	/* obtain line stats */
+	buf[BUFSIZ] = '\0';
+	raw_len = strlen(buf);
+	if (raw_len <= 0) {
+	    dbg(1, "no EOF or error, but fgets returned %d octets", raw_len);
+	    raw_len = -1;	/* force error */
+	} else {
+	    dbg(3, "fgets read %d octet line for record %lld",
+		raw_len, (u_int64_t)recnum);
+	}
+    }
+
+    /*
+     * return result
+     */
+    return raw_len;
 }
 
 
