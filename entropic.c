@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.2 $
- * @(#) $Id: entropic.c,v 1.2 2003/01/28 09:57:39 chongo Exp chongo $
+ * @(#) $Revision: 1.3 $
+ * @(#) $Id: entropic.c,v 1.3 2003/01/28 19:25:35 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -147,28 +147,42 @@ struct bitslice {
 /*
  * usage
  */
-char *usage =
-	"[-v verbose] [-b bit_depth] [-r rec_size] input_file\n"
+static char *usage =
+	"[-h] [-v verbose] [-b bit_depth] [-r rec_size] [-k] [-t trim_str]\n"
+	"    [-c] input_file\n"
+	"\n"
+	"\t-h			print this help message and exit\n"
 	"\n"
 	"\t-v verbose		verbose level (def: 0 ==> none)\n"
 	"\t-b bit_depth		tally depth for each record bit (def: 12)\n"
 	"\t-r rec_size		read rec_size octet records (def: line mode)\n"
+	"\t-k			do not discard newlines (not with -r)\n"
+	"\t-t trim_str		x's ==> remove, v's ==> keep octet position\n"
+	"\t-c			keep after 1st = before 1st ; (not with -r)\n"
+	"\n"
 	"\tinput_file\tfile to read records from (- ==> stdin)\n";
-char *program;			/* our name */
-int v_flag = 0;			/* verbosity level */
-int bit_depth = DEF_DEPTH;	/* tally depth, in bits, for each record bit */
-int rec_size = 0;		/* > 0 ==> record size, 0 ==> line mode */
-int line_mode = 1;		/* 0 ==> read binary recs, 1 ==> read lines */
+static char *program;		/* our name */
+static int v_flag = 0;		/* verbosity level */
+static int bit_depth = DEF_DEPTH;  /* tally bit depth for each bit in record */
+static int rec_size = 0;	/* > 0 ==> record size, 0 ==> line mode */
+static int line_mode = 1;	/* 0 ==> read binary recs, 1 ==> read lines */
+static int keep_newline = 0;	/* 0 ==> discard newline, 1 ==> keep them */
+static char *trim_str = NULL;	/* x ==> remove, v ==> keep, else remove */
+static int cookie_trim = 0;	/* 1 ==> keep after 1st = and before 1st ; */
+static char *filename;		/* name of input file, or - ==> stdin */
 
 
 /*
  * forward declarations
  */
+static void parse_args(int argc, char **argv);
 static tally_t *alloc_bittally(int depth);
 static struct bitslice *alloc_bitslice(int bitnum, int depth);
 static void record_bit(struct bitslice *slice, int value);
 static void dbg(int level, char *fmt, ...);
 static int read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line);
+static int trim_record(u_int8_t *buf, int buf_len, int keep_nl,
+		       int cookie, char *trim);
 
 /*
  * misc globals and static values
@@ -185,59 +199,15 @@ main(int argc, char *argv[])
 {
     extern char *optarg;	/* argument to current option */
     extern int optind;		/* first argv-element that is not an option */
-    char *filename;		/* name of input file, or - ==> stdin */
     FILE *input;		/* stream from which to read records */
     u_int8_t *raw_buf;		/* raw record input buffer */
-    int raw_len;		/* length of raw record in octets */
-    int i;
+    int rec_len;		/* length of raw record in octets */
 
     /*
      * parse args
      */
     program = argv[0];
-    while ((i = getopt(argc, argv, "v:b:r:")) != -1) {
-	switch (i) {
-	case 'v':	/* verbose level */
-	    v_flag = strtol(optarg, NULL, 0);
-	    break;
-	case 'b':	/* tally depth */
-	    bit_depth = strtol(optarg, NULL, 0);
-	    break;
-	case 'r':	/* binary record size */
-	    rec_size = strtol(optarg, NULL, 0);
-	    line_mode = 0;
-	    break;
-	default:
-	    fprintf(stderr, "usage: %s %s\n", program, usage);
-	    exit(1);
-	}
-    }
-    /* requires 1 arg */
-    if (optind >= argc) {
-	fprintf(stderr, "usage: %s %s\n", program, usage);
-	exit(2);
-    }
-    filename = argv[optind];
-    dbg(1, "main: input file: %s", filename);
-    if (bit_depth < 1) {
-	fprintf(stderr, "%s: -b bit_depth must be > 0\n", program);
-	exit(3);
-    }
-    if (bit_depth > MAX_DEPTH) {
-	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
-	exit(4);
-    }
-    dbg(1, "main: bit_depth: %d", bit_depth);
-    if (line_mode == 0 && rec_size <= 0) {
-	fprintf(stderr, "%s: -r rec_size: %d must be > 0\n",
-		program, rec_size);
-	exit(5);
-    } else if (line_mode == 0) {
-	dbg(1, "main: binary record size: %d", rec_size);
-    } else {
-	rec_size = BUFSIZ;
-	dbg(1, "main: line mode of up to %d octets\n", rec_size);
-    }
+    parse_args(argc, argv);
 
     /*
      * open the file containing records
@@ -251,7 +221,7 @@ main(int argc, char *argv[])
     if (input == NULL) {
 	fprintf(stderr, "%s: unable to open for reading: %s\n",
 		program, filename);
-	exit(6);
+	exit(1);
     }
 
     /*
@@ -261,7 +231,7 @@ main(int argc, char *argv[])
     if (raw_buf == NULL) {
 	fprintf(stderr, "%s: failed to allocate raw buffer: %d octets\n",
 		program, rec_size+1);
-	exit(7);
+	exit(2);
     }
 
     /*
@@ -273,13 +243,135 @@ main(int argc, char *argv[])
 	/*
 	 * read the next record
 	 */
-	raw_len = read_record(input, raw_buf, rec_size, line_mode);
-	if (raw_len < 0) {
+	rec_len = read_record(input, raw_buf, rec_size, line_mode);
+	if (rec_len <= 0) {
 	    /* EOF or error */
+	    debug(1, "main: read_record returned: %d <= 0", rec_len);
 	    break;
 	}
 
+	/*
+	 * trim record, if needed
+	 */
+	rec_len = trim_record(raw_buf, rec_len, keep_newline,
+			      cookie_trim, trim_str);
+	if (rec_len <= 0) {
+	    /* EOF or error */
+	    debug(2, "main: skipping record, trim_record returned: %d <= 0",
+		    rec_len);
+	    continue;
+	}
+	debug(2, "main: trimmed record has %d octets", rec_len);
+
     } while (++recnum > 0);
+}
+
+
+/*
+ * parse_args - parse and check command line arguments
+ */
+static void
+parse_args(int argc, char **argv)
+{
+    int i;
+
+    /*
+     * process command line options
+     *
+     * See the usage static string for details on command line options
+     */
+    while ((i = getopt(argc, argv, "hv:b:r:kt:c")) != -1) {
+	switch (i) {
+	case 'h':	/* print usage message and then exit */
+	    fprintf(stderr, "usage: %s %s\n", program, usage);
+	    exit(0);
+	    /*NOTREACHED*/
+	case 'v':	/* verbose level */
+	    v_flag = strtol(optarg, NULL, 0);
+	    break;
+	case 'b':	/* tally depth */
+	    bit_depth = strtol(optarg, NULL, 0);
+	    break;
+	case 'r':	/* binary record size */
+	    rec_size = strtol(optarg, NULL, 0);
+	    line_mode = 0;
+	    break;
+	case 'k':	/* keep newlines */
+	    keep_newline = 1;
+	    break;
+	case 't':	/* trim string */
+	    trim_str = optarg;
+	    break;
+	case 'c':	/* cookie trim */
+	    cookie_trim = 1;
+	    break;
+	default:
+	    fprintf(stderr, "usage: %s %s\n", program, usage);
+	    exit(3);
+	}
+    }
+
+    /*
+     * note the input filename
+     */
+    if (optind >= argc) {
+	fprintf(stderr, "usage: %s %s\n", program, usage);
+	exit(4);
+    }
+    filename = argv[optind];
+    dbg(1, "main: input file: %s", filename);
+
+    /*
+     * check bit depth
+     */
+    if (bit_depth < 1) {
+	fprintf(stderr, "%s: -b bit_depth must be > 0\n", program);
+	exit(5);
+    }
+    if (bit_depth > MAX_DEPTH) {
+	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
+	exit(6);
+    }
+    dbg(1, "main: bit_depth: %d", bit_depth);
+    
+    /*
+     * check raw record size, if given
+     */
+    if (line_mode == 0 && rec_size <= 0) {
+	fprintf(stderr, "%s: -r rec_size: %d must be > 0\n",
+		program, rec_size);
+	exit(7);
+    } else if (line_mode == 0) {
+	dbg(1, "main: binary record size: %d", rec_size);
+    } else {
+	rec_size = BUFSIZ;
+	dbg(1, "main: line mode of up to %d octets\n", rec_size);
+    }
+
+    /*
+     * -k implies line mode, but -r rec_size implies raw mode
+     */
+    if (line_mode == 0 && keep_newline) {
+	fprintf(stderr, "%s: -r rec_size and -k conflict\n", program);
+	exit(8);
+
+    /*
+     * -c implies line mode, but -r rec_size implies raw mode
+     */
+    if (line_mode == 0 && cookie_trim) {
+	fprintf(stderr, "%s: -r rec_size and -c conflict\n", program);
+	exit(9);
+    }
+
+    /*
+     * trim string, if given, can only contain x's and v's
+     */
+    if (trim_str != NULL && strspn(trim_str, "xv") != strlen(trim_str)) {
+	fprintf(stderr, "%s: -t trim_str can only have x's and v's: %s\n",
+		program, trim_str);
+	exit(10);
+    }
+    return;
 }
 
 
@@ -319,7 +411,7 @@ alloc_bittally(int depth)
     if (depth < 1) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d must be > 0\n",
 		program, depth);
-	exit(5);
+	exit(9);
     }
     values = 1<<(depth+1);
     if (values < 0 || values == 0) {
@@ -482,11 +574,13 @@ record_bit(struct bitslice *slice, int value)
  *
  * return:
  * 	number of octets read, or -1 ==> error
+ *
+ * NOTE: We will ensure that the octet beyond the end of the buffer is '\0'.
  */
 static int
 read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 {
-    int raw_len;		/* length of raw record in octets */
+    int rec_len;		/* length of raw record in octets */
 
     /*
      * setup to read
@@ -498,14 +592,14 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
      * raw read
      */
     if (read_line == 0) {
-	raw_len = fread(buf, buf_size, 1, input);
+	rec_len = fread(buf, buf_size, 1, input);
 	if (ferror(input)) {
 	    dbg(1, "fread error: %s", strerror(errno));
 	} else if (feof(input)) {
 	    dbg(2, "EOF in fread");
-	} else if (raw_len <= 0) {
-	    dbg(1, "no EOF or error, but fread returned: %d", raw_len);
-	    raw_len = -1;	/* force error */
+	} else if (rec_len <= 0) {
+	    dbg(1, "no EOF or error, but fread returned: %d", rec_len);
+	    rec_len = -1;	/* force error */
 	} else {
 	    dbg(3, "fread %d octets for record %lld",
 		    buf_size, (u_int64_t)recnum);
@@ -521,24 +615,145 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	} else if (feof(input)) {
 	    dbg(2, "EOF in fgets");
 	}
-	raw_len = -1;
+	rec_len = -1;
     } else {
 	/* obtain line stats */
 	buf[BUFSIZ] = '\0';
-	raw_len = strlen(buf);
-	if (raw_len <= 0) {
-	    dbg(1, "no EOF or error, but fgets returned %d octets", raw_len);
-	    raw_len = -1;	/* force error */
+	rec_len = strlen(buf);
+	if (rec_len <= 0) {
+	    dbg(1, "no EOF or error, but fgets returned %d octets", rec_len);
+	    rec_len = -1;	/* force error */
 	} else {
 	    dbg(3, "fgets read %d octet line for record %lld",
-		raw_len, (u_int64_t)recnum);
+		rec_len, (u_int64_t)recnum);
 	}
+    }
+
+    /* 
+     * force trailing '\0' 
+     */
+    if (rec_len > 0) {
+	buf[rec_len] = '\0';
+    } else {
+	buf[0] = '\0';
     }
 
     /*
      * return result
      */
-    return raw_len;
+    return rec_len;
+}
+
+
+/*
+ * trim_record - if needed, trim newlines and trim_str characters
+ *
+ * given:
+ * 	buf		the buffer to trim
+ * 	buf_len		length of the buffer in octets
+ * 	keep_nl		0 ==> remove trailing newline, if found
+ * 	cookie		1 ==> keep only after 1st = and before 1st ;
+ * 	trim		keep octet (v's) of remove octet (x's) if non-NULL
+ *
+ * returns:
+ * 	the new record length
+ *
+ * NOTE: Like read_record(), the octet beyond the buffer will be '\0'.
+ */
+static int
+trim_record(u_int8_t *buf, int buf_len, int keep_nl, int cookie, char *trim)
+{
+    /*
+     * firewall
+     */
+    if (buf == NULL) {
+	fprintf(stderr, "%s: trim_record: buf is NULL\n", program);
+	exit(10);
+    }
+    if (buf_len <= 0) {
+	fprintf(stderr, "%s: trim_record: buf_len <= 0: %d\n",
+		program, buf_len);
+	exit(11);
+    }
+
+    /*
+     * trim newline, if requested
+     *
+     * We trim a trailing \n or a trailing \r\n or a trailing \n\r
+     */
+    if (keep_nl == 0) {
+	if (buf[buf_len-1] == '\n') {
+	    buf[buf_len-1] = '\0';
+	    --buf_len;
+	    if (buf_len > 0 && buf[buf_len-1] == '\r') {
+		buf[buf_len-1] = '\0';
+		--buf_len;
+	    }
+	} else if (buf[buf_len-1] == '\r') {
+	    buf[buf_len-1] = '\0';
+	    --buf_len;
+	    if (buf_len > 0 && buf[buf_len-1] == '\n') {
+		buf[buf_len-1] = '\0';
+		--buf_len;
+	    }
+	}
+    }
+    if (buf_len <= 0) {
+	/* trimed the line down to nothing */
+	return buf_len;
+    }
+
+    /*
+     * cookie trim, if requested
+     *
+     * Programs such as cookie_monister will output lines of the form:
+     * 		
+     *    [optional_simestamp:] Set-cookie: COOKIE_NAME=VALUE; stuff ...
+     *
+     * This trim will reduce the above line down to just:
+     *
+     *    VALUE
+     *
+     * NOTE: If the line does not have a = and a ;, then the entire line
+     * 	     is discarded.
+     */
+    if (cookie) {
+	char *equal;	/* first = or NULL */
+	char *semi;	/* first ; or NULL */
+
+	/*
+	 * look for the cookie value boundaries
+	 */
+	equal = strchr(buf, '=');
+	if (equal == NULL) {
+	    dbg(4, "trim_record: line has no =, discarding line");
+	    return 0;
+	}
+	semi = strchr(equal+1, '=');
+	if (semi == NULL) {
+	    dbg(4, "trim_record: no ; after 1st =, discarding line");
+	    return 0;
+	}
+
+	/*
+	 * copy value to front of buffer
+	 */
+	buf_len = semi-equal;
+	memmove(buf, equal+1, buf_len);
+	buf[buf_len] = '\0';
+    }
+
+    /*
+     * process trim string
+     * 
+     * For each v in the trim string, we keep the corresponding octet
+     * in the buffer.  Otherwise we discard the corresponding octet.
+     * The parse_args() function verified that the trim string, if given,
+     * contains only x's and v's.  Buffer octets beyond the end of
+     * the trim string are discarded as well.
+     *
+     * XXX
+     */
 }
 
 
