@@ -40,21 +40,33 @@
 /*
  * defaults
  *
+ * OCTET_BITS	number of bits in an 8 bit octet
+ *
  * DEF_DEPTH	default tally depth (-b) for each record bit
+ *
+ * HISTORY_BITS	We must have this many records before we have a full
+ * 		history's worth of values for a given bit postion in a record.
+ * 		Bit histories are kept in a u_int64_t.
+ *
+ * BACK_HISTORY	When we form xors of current values and history values,
+ * 		we will go back in history up to this many bits.
  *
  * MAX_DEPTH	Deeper tally depths require more memory.  An increase in 1
  * 		for the depth requires twice as much memory.  A deeper tally
  * 		has a shorter history from which bit differences can be
  * 		examined.
  *
- * 		Bit histories are kept in a u_int64_t.  A max depth of 1/2
- * 		that history is a compromize between more depth and more
- * 		bit differences.  While systems are likely not able to
- * 		allocate enough memory, this 1/2 of a u_int64_t depth (32)
- * 		is a reasonable upper bound.
+ * 		For each bit depth, we need BACK_HISTORY more bits in the
+ * 		history.  So MAX_DEPTH+BACK_HISTORY must be <= HISTORY_BITS.
+ * 		We go one less so that index offsets fit within signed 32 bits.
+ * 		Most systems will not be able to allocate this much memory,
+ * 		but we have to draw a limit somewhere.
  */
+#define OCTET_BITS 8
 #define DEF_DEPTH 12
-#define MAX_DEPTH (sizeof(u_int64_t)*8/2)
+#define HISTORY_BITS (sizeof(u_int64_t)*OCTET_BITS)
+#define BACK_HISTORY (HISTORY_BITS/2)
+#define MAX_DEPTH (BACK_HISTORY-1)
 
 
 /*
@@ -142,14 +154,15 @@ char *usage =
 	"\tinput_file\tfile to read records from (- ==> stdin)\n";
 char *program;			/* our name */
 int v_flag = 0;			/* verbosity level */
-int b_flag = DEF_DEPTH;		/* tally depth, in bits, for each record bit */
+int bit_depth = DEF_DEPTH;		/* tally depth, in bits, for each record bit */
 
 
 /*
  * forward declarations
  */
-static struct bitslice *alloc_bitslice(int bitnum, int depth);
 static tally_t *alloc_bittally(int depth);
+static struct bitslice *alloc_bitslice(int bitnum, int depth);
+static void record_bit(struct bitslice *slice, int value);
 static void dbg(int level, char *fmt, ...);
 
 
@@ -174,7 +187,7 @@ main(int argc, char *argv[])
 	    v_flag = strtol(optarg, NULL, 0);
 	    break;
 	case 'b':	/* tally depth */
-	    b_flag = strtol(optarg, NULL, 0);
+	    bit_depth = strtol(optarg, NULL, 0);
 	    break;
 	default:
 	    fprintf(stderr, "usage: %s %s\n", program, usage);
@@ -186,18 +199,18 @@ main(int argc, char *argv[])
 	fprintf(stderr, "usage: %s %s\n", program, usage);
 	exit(2);
     }
-    if (b_flag < 1) {
+    if (bit_depth < 1) {
 	fprintf(stderr, "%s: -b bit_depth must be > 0\n", program);
 	exit(3);
     }
-    if (b_flag > MAX_DEPTH) {
+    if (bit_depth > MAX_DEPTH) {
 	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
 	exit(4);
     }
-    dbg(1, "main: bit_depth: %d", b_flag);
+    dbg(1, "main: bit_depth: %d", bit_depth);
 
     /* XXX - testing */
-    (void) alloc_bitslice(5, b_flag);
+    (void) alloc_bitslice(5, bit_depth);
 }
 
 
@@ -214,7 +227,7 @@ main(int argc, char *argv[])
  * The tally array layout:
  *
  * 	unused				(1 value)
- * 	count of tallied values		(1 value - tally for depth of 1 bits)
+ * 	unused				(1 value)
  * 	tally for depth of 1 bit	(2 values)
  * 	tally for depth of 2 bits	(4 values)
  * 	tally for depth of 3 bits	(8 values)
@@ -237,13 +250,13 @@ alloc_bittally(int depth)
     if (depth < 1) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d must be > 0\n",
 		program, depth);
-	exit(4);
+	exit(5);
     }
     values = 1<<(depth+1);
     if (values < 0 || values == 0) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d is too large\n",
 		program, depth);
-	exit(5);
+	exit(6);
     }
 
     /*
@@ -254,7 +267,7 @@ alloc_bittally(int depth)
 	fprintf(stderr, "%s: alloc_bittally: "
 			"not enough memory for depth: %d\n",
 		program, depth);
-	exit(6);
+	exit(7);
     }
 
     /*
@@ -287,7 +300,7 @@ alloc_bitslice(int bitnum, int depth)
     if (depth < 1) {
 	fprintf(stderr, "%s: alloc_bittbl: depth: %d must be > 0\n",
 		program, depth);
-	exit(5);
+	exit(8);
     }
 
     /*
@@ -296,30 +309,97 @@ alloc_bitslice(int bitnum, int depth)
     ret = (struct bitslice *)malloc(sizeof(struct bitslice));
     if (ret == NULL) {
 	fprintf(stderr, "%s: cannot allocate struct bitslice\n", program);
-	exit(5);
+	exit(9);
     }
 
     /*
      * initialize bitslice
      */
     ret->bitnum = bitnum;
-    ret->history = 0ULL;
-    ret->count = 0ULL;
+    ret->history = 0;
+    ret->count = 0;
 
     /*
      * allocate tally tables for current and past xor differences
      */
-    for (i=0; i <= depth; ++i) {
+    for (i=0; i <= BACK_HISTORY; ++i) {
 	ret->hist[i] = alloc_bittally(depth);
-    }
-    for (i=depth+1; i <= MAX_DEPTH; ++i) {
-	ret->hist[i] = NULL;
     }
 
     /*
      * return bitslice
      */
     return ret;
+}
+
+
+/*
+ * record_bit - record and tally a bit value for a given bitslice
+ *
+ * given:
+ * 	slice	bitslice record for a given bit position in our records
+ * 	value	next value for the given bit postion (0 or 1)
+ */
+static void
+record_bit(struct bitslice *slice, int value)
+{
+    int depth;		/* bit depth being processed */
+    u_int32_t offset;	/* tally array offset */
+    u_int32_t cur;	/* current bit values (for a given depth), xor-ed */
+    u_int32_t back;	/* bit values going back into history */
+    int h;		/* bits going back into history */
+    int i;
+
+    /*
+     * firewall
+     */
+    if (slice == NULL) {
+	fprintf(stderr, "%s: record_bit: slice is NULL\n", program);
+	exit(10);
+    }
+
+    /*
+     * push the value onto the history
+     *
+     * The new value is shifted into the 0th bit postion of our history.
+     * Bit values are either 0 and 1 (non-zero).
+     */
+    slice->history <<= 1;
+    if (value != 0) {
+	slice->history |= 1;
+    }
+
+    /*
+     * We do not do anything if we lack a full history.  We want to
+     * be sure that slice->history is full of bit values from actual
+     * records.  Count the bit that we just recorded.
+     */
+    if (++slice->count < HISTORY_BITS) {
+	return;
+    }
+
+    /*
+     * process just the values
+     */
+    for (i=1, offset=1; i <= bit_depth; ++i, offset <<= 1) {
+
+	/* get the i-depth value - (offset-1) is an i-bit mask of 1's */
+	cur = (u_int32_t)slice->history ^ (offset-1);
+
+	/* tally the i-depth value - no x-or with history in the 0 case */
+	++slice->hist[0][offset + cur];
+
+	/* tally the i-depth value xored with previous history */
+	for (h=1; h <= BACK_HISTORY; ++h) {
+
+	    /* get the i-depth value going back in history h bits */
+	    back = (u_int32_t)(slice->history >> h) ^ (offset-1);
+
+	    /* tally the i-depth value xored with history back h bits */
+	    ++slice->hist[h][offset + (cur^back)];
+	}
+    }
+    return;
 }
 
 
