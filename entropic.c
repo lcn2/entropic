@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.8 $
- * @(#) $Id: entropic.c,v 1.8 2003/01/30 13:45:14 chongo Exp chongo $
+ * @(#) $Revision: 1.9 $
+ * @(#) $Id: entropic.c,v 1.9 2003/01/30 14:19:41 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -519,7 +519,7 @@ main(int argc, char *argv[])
 	}
 
 	/*
-	 * record bit values
+	 * record bit values for this record
 	 */
 	for (i=0; i < bit_buf_used; ++i) {
 	    record_bit(bits[i], bit_buf[i]);
@@ -1054,11 +1054,15 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
      * raw read
      */
     if (read_line == 0) {
-	rec_len = fread(buf, buf_size, 1, input);
+	rec_len = fread(buf, 1, buf_size, input);
 	if (ferror(input)) {
 	    dbg(1, "fread error: %s", strerror(errno));
 	} else if (feof(input)) {
-	    dbg(1, "EOF in fread");
+	    if (rec_len > 0) {
+		dbg(1, "short fread: %d out of %d octets", rec_len, buf_size);
+	    } else {
+		dbg(1, "EOF in fread");
+	    }
 	} else if (rec_len <= 0) {
 	    dbg(1, "no EOF or error, but fread returned: %d", rec_len);
 	    rec_len = -1;	/* force error */
