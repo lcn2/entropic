@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.13 $
- * @(#) $Id: entropic.c,v 1.13 2003/01/31 04:25:32 chongo Exp chongo $
+ * @(#) $Revision: 1.14 $
+ * @(#) $Id: entropic.c,v 1.14 2003/01/31 04:47:16 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -217,7 +217,7 @@ static char *usage =
 	"\t# comments start with a # and go thru the end of the line\n"
 	"\t# empty and blank lines are ignored\n"
 	"\n"
-	"sizeof(bits[0]));\t# The charmask line contains only x's and c's after the =\n"
+	"\t# The charmask line contains only x's and c's after the =\n"
 	"\t# The charmask is optional, default is process all chars\n"
 	"\tcharmask=[xc]+	# comments at the end of a line are ignored\n"
 	"\n"
@@ -615,7 +615,11 @@ main(int argc, char *argv[])
      * final entropy processing
      */
     dbg(1, "final entropy processing");
-    rept_entropy(bits, bits_len);
+    if (bits == NULL || bits_len <= 0) {
+	printf("Error: nothing to process\n");
+    } else {
+	rept_entropy(bits, bits_len);
+    }
     if (overall.high_bit_cnt > 0) {
 	printf("record count: %llu with %d bits: "
 	       "high entropy: %f\n",
