@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.11 $
- * @(#) $Id: entropic.c,v 1.11 2003/01/30 14:44:34 chongo Exp chongo $
+ * @(#) $Revision: 1.12 $
+ * @(#) $Id: entropic.c,v 1.12 2003/01/31 03:19:35 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -95,7 +95,7 @@
 #define MAX_DEPTH (MAX_BACK_HISTORY-1)
 #define DEF_DEPTH_FACTOR 4
 #define INV_LN_2 ((double)1.442695040888963407359924681001892137426646)
-#define INVALID_MAX_ENTROPY ((double)-1.0)
+#define INVALID_MAX_ENTROPY ((double)-10.0)
 #define INVALID_MIN_ENTROPY ((double)10.0)
 
 
@@ -1169,10 +1169,10 @@ record_bit(struct bitslice *slice, int value)
     /*
      * process just the values
      */
-    for (depth=1, offset=1; depth <= bit_depth; ++depth, offset <<= 1) {
+    for (depth=1, offset=2; depth <= bit_depth; ++depth, offset <<= 1) {
 
 	/* get the i-depth value - (offset-1) is an i-bit mask of 1's */
-	cur = (u_int32_t)slice->history & ((offset<<1)-1);
+	cur = (u_int32_t)slice->history & (offset-1);
 
 	/* tally the i-depth value - no x-or with history in the 0 case */
 	++slice->hist[0][offset + cur];
@@ -1181,7 +1181,7 @@ record_bit(struct bitslice *slice, int value)
 	for (back=1; back <= back_history; ++back) {
 
 	    /* get the i-depth value going back in history h bits */
-	    past = (u_int32_t)(slice->history >> back) & ((offset<<1)-1);
+	    past = (u_int32_t)(slice->history >> back) & (offset-1);
 
 	    /* tally the i-depth value xor-ed with history back h bits */
 	    ++slice->hist[back][offset + (cur^past)];
@@ -1233,7 +1233,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	    dbg(1, "no EOF or error, but fread returned: %d", rec_len);
 	    rec_len = -1;	/* force error */
 	} else {
-	    dbg(4, "fread %d octets for record %lld",
+	    dbg(6, "fread %d octets for record %lld",
 		    buf_size, (u_int64_t)recnum);
 	}
 
@@ -1350,7 +1350,9 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     /*
      * do nothing if input buffer is empty
      */
-    dbg(10, "initial inbuf pre newline trim: ((%s))", inbuf);
+    if (line_mode) {
+	dbg(10, "initial inbuf pre newline trim: ((%s))", inbuf);
+    }
     dbg(9, "pre inbuf len: %d", orig_inbuf_len);
     if (inbuf_len <= 0) {
 	dbg(5, "trim_record: empty inbuf");
@@ -1380,7 +1382,9 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	}
     }
     dbg(8, "inbuf len: %d", inbuf_len);
-    dbg(8, "1st inbuf: %s", inbuf);
+    if (line_mode) {
+	dbg(8, "1st inbuf: %s", inbuf);
+    }
     if (inbuf_len <= 0) {
 	/* trimmed the line down to nothing */
 	return 0;
@@ -1424,7 +1428,9 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	inbuf_len = semi - equal - 1;
 	memmove(inbuf, equal+1, inbuf_len);
 	inbuf[inbuf_len] = '\0';
-	dbg(9, "cookie tr: %s", inbuf);
+	if (line_mode) {
+	    dbg(9, "cookie tr: %s", inbuf);
+	}
     }
 
     /*
@@ -1455,8 +1461,10 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	}
 	inbuf_len = q - inbuf;
 	inbuf[inbuf_len] = '\0';	/* for debugging */
-	dbg(9, "char_mask: %s", char_mask);
-	dbg(9, "inbuf after char_mask: %s", inbuf);
+	if (line_mode) {
+	    dbg(9, "char_mask: %s", char_mask);
+	    dbg(9, "inbuf after char_mask: %s", inbuf);
+	}
 	dbg(7, "inbuf trimmed to %d octets", inbuf_len);
     }
 
@@ -1640,9 +1648,9 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
     /*
      * calculate entropy of each slice
      */
-    total_high_ent = INVALID_MAX_ENTROPY;
+    total_high_ent = 0.0;
     total_high_cnt = 0;
-    total_low_ent = INVALID_MAX_ENTROPY;
+    total_low_ent = 0.0;
     total_low_cnt = 0;
     for (bit_num=0; bit_num < bit_buf_used; ++bit_num) {
 
@@ -1668,7 +1676,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 	inv_count = 1.0 / (double)count;
 	depth_lim = slice[bit_num]->depth_lim;
 	back_lim = slice[bit_num]->back_lim;
-	while (depth_lim > 0 && (count/depth_factor) > (1ULL << depth_lim)) {
+	while (depth_lim > 0 && (count/depth_factor) < (1ULL << depth_lim)) {
 	    --depth_lim;
 	}
 	if (depth_lim <= 0) {
@@ -1723,16 +1731,23 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		entropy = 0.0;
 		for (i=0; i < offset; ++i) {
 
-		    /* proability of find this value at this depth */
-		    p_i = (double)tally[offset+i] * inv_count;
+		    /* ignore of no count */
+		    if (tally[offset+i] > 0) {
 
-		    /* add to entropy sum */
-		    entropy += p_i * log(p_i);
+			/* proability of find this value at this depth */
+			p_i = (double)tally[offset+i] * inv_count;
+
+			/* add to entropy sum */
+			entropy += p_i * log(p_i);
+		    }
 		}
 		/* entropy is the - sum , and covert log base 2 */
 		entropy = entropy * -INV_LN_2;
 		dbg(9, "rept_entropy: slice[%d]: hist:%d depth:%d: entropy:%f",
-			bit_num, hist_num, offset, entropy);
+			bit_num, hist_num, depth_num, entropy);
+		if (entropy < 0.0) {
+		    entropy = 0.0;
+		}
 
 		/*
 		 * keep track of maximum and minimum entropy levels
@@ -1742,7 +1757,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		    max_ent_depth = depth_num;
 		    if (max_entropy > high_bit_ent) {
 			high_bit_ent = max_entropy;
-			high_ent_depth = max_ent_depth;
+			high_ent_depth = depth_num;
 			high_ent_hist = hist_num;
 			dbg(6, "rept_entropy: slice[%d]: hist:%d depth:%d "
 			       "new max_entropy:%f",
@@ -1755,12 +1770,12 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		    min_ent_depth = depth_num;
 		    if (min_entropy < low_bit_ent) {
 			low_bit_ent = min_entropy;
-			low_ent_depth = min_ent_depth;
+			low_ent_depth = depth_num;
 			low_ent_hist = hist_num;
 			dbg(6, "rept_entropy: slice[%d]: hist:%d depth:%d "
 			       "new min_entropy:%f",
 			       bit_num, low_ent_hist, low_ent_depth,
-			       low_ent_depth);
+			       low_bit_ent);
 		    }
 		}
 	    }
@@ -1778,7 +1793,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		       "no max_entropy",
 		       bit_num, hist_num, max_ent_depth);
 	    }
-	    if (min_entropy < INVALID_MAX_ENTROPY) {
+	    if (min_entropy < INVALID_MIN_ENTROPY) {
 		slice[bit_num]->min_ent[hist_num] = min_entropy;
 		dbg(8, "rept_entropy: slice[%d]: hist:%d depth:%d "
 		       "min_entropy:%f",
@@ -1795,23 +1810,27 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 	 */
 	if (high_bit_ent > INVALID_MAX_ENTROPY) {
 	    slice[bit_num]->entropy_high = high_bit_ent;
-	    dbg(5, "rept_entropy: slice[%d]: hist:%d depth:%d high entropy:%f",
+	    dbg(4, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		    "bit high entropy:%f",
 		   bit_num, high_ent_hist, high_ent_depth,
 		   high_bit_ent);
 	    total_high_ent += high_bit_ent;
 	    ++total_high_cnt;
 	} else {
-	    dbg(6, "rept_entropy: slice[%d]: max_entropy unknown", bit_num);
+	    dbg(5, "rept_entropy: slice[%d]: bit max_entropy unknown",
+		   bit_num);
 	}
 	if (low_bit_ent < INVALID_MIN_ENTROPY) {
 	    slice[bit_num]->entropy_low = low_bit_ent;
-	    dbg(5, "rept_entropy: slice[%d]: hist:%d depth:%d low entropy:%f",
+	    dbg(4, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		    "bit low entropy:%f",
 		   bit_num, low_ent_hist, low_ent_depth,
 		   low_bit_ent);
 	    total_low_ent += low_bit_ent;
 	    ++total_low_cnt;
 	} else {
-	    dbg(6, "rept_entropy: slice[%d]: max_entropy unknown", bit_num);
+	    dbg(5, "rept_entropy: slice[%d]: bit min_entropy unknown",
+		   bit_num);
 	}
     }
 
@@ -1821,18 +1840,18 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
     if (total_high_cnt > 0) {
 	overall.high_entropy = total_high_ent;
 	overall.high_bit_cnt = total_high_cnt;
-	dbg(4, "rept_entropy: overall high entropy: %f", overall.high_entropy);
-	dbg(4, "rept_entropy: overall high bits: %d", overall.high_bit_cnt);
+	dbg(3, "rept_entropy: overall high entropy: %f", overall.high_entropy);
+	dbg(3, "rept_entropy: overall high bits: %d", overall.high_bit_cnt);
     }
     if (total_low_cnt > 0) {
 	overall.low_entropy = total_low_ent;
 	overall.low_bit_cnt = total_low_cnt;
-	dbg(4, "rept_entropy: overall low entropy: %f", overall.low_entropy);
-	dbg(4, "rept_entropy: overall low bits: %d", overall.low_bit_cnt);
+	dbg(3, "rept_entropy: overall low entropy: %f", overall.low_entropy);
+	dbg(3, "rept_entropy: overall low bits: %d", overall.low_bit_cnt);
     }
     if (total_high_cnt > 0 && total_low_cnt > 0) {
 	overall.med_entropy = (total_high_ent + total_low_ent) / 2.0;
-	dbg(4, "rept_entropy: overall median entropy: %f",
+	dbg(3, "rept_entropy: overall median entropy: %f",
 	       overall.med_entropy);
     }
     return;
