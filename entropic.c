@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.15 $
- * @(#) $Id: entropic.c,v 1.15 2003/01/31 18:06:41 chongo Exp chongo $
+ * @(#) $Revision: 1.16 $
+ * @(#) $Id: entropic.c,v 1.16 2003/07/01 17:22:49 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -605,8 +605,13 @@ main(int argc, char *argv[])
 		       overall.low_bit_cnt, overall.low_entropy);
 	    }
 	    if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
-		printf("after record %llu median entropy: %f\n",
-		       overall.med_entropy);
+		printf("after record %llu for %d bits: "
+		       "median entropy: %f\n",
+		       (u_int64_t)recnum+1,
+		       overall.low_bit_cnt, overall.med_entropy);
+	    }
+	    if (overall.high_bit_cnt > 0) {
+		fputc('\n', stdout);
 	    }
 	}
 
