@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.10 $
- * @(#) $Id: entropic.c,v 1.10 2003/01/30 14:39:07 chongo Exp chongo $
+ * @(#) $Revision: 1.11 $
+ * @(#) $Id: entropic.c,v 1.11 2003/01/30 14:44:34 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -38,6 +38,7 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 
 /*
@@ -47,29 +48,56 @@
  *
  * DEF_DEPTH	default tally depth (-b) for each record bit
  *
- * HISTORY_BITS	We must have this many records before we have a full
+ * MAX_HISTORY_BITS
+ * 		We must have this many records before we have a full
  * 		history's worth of values for a given bit position in a record.
  * 		Bit histories are kept in a u_int64_t.
  *
- * BACK_HISTORY	When we form xors of current values and history values,
+ * MAX_BACK_HISTORY
+ * 		When we form xors of current values and history values,
  * 		we will go back in history up to this many bits.
+ *
+ * DEF_HISTORY	Default BACK_HISTORY value.
  *
  * MAX_DEPTH	Deeper tally depths require more memory.  An increase in 1
  * 		for the depth requires twice as much memory.  A deeper tally
  * 		has a shorter history from which bit differences can be
  * 		examined.
  *
- * 		For each bit depth, we need BACK_HISTORY more bits in the
- * 		history.  So MAX_DEPTH+BACK_HISTORY must be <= HISTORY_BITS.
- * 		We go one less so that index offsets fit within signed 32 bits.
- * 		Most systems will not be able to allocate this much memory,
- * 		but we have to draw a limit somewhere.
+ * 		For each bit depth, we need MAX_BACK_HISTORY more bits in the
+ * 		history.  So MAX_DEPTH+MAX_BACK_HISTORY is required to
+ * 		be <= MAX_HISTORY_BITS.  We go one less so that index offsets
+ * 		fit within signed 32 bits.  Most systems will not be able to
+ * 		allocate this much memory, but we have to draw a limit
+ * 		somewhere.
+ *
+ * DEF_DEPTH_FACTOR
+ * 		When we calculate entropy at a depth of x, we use the
+ * 		tally_t of values from [0 .. (1<<x)-1].
+ *
+ * 		However if we have only counted a few bits for a given
+ * 		slice, this tally_t set will not be very populated.
+ * 		The required number of cycles to use a depth of x
+ * 		in calculating entropy is (1<<x) * depth_factor.
+ * 		This value is the default depth_factor.
+ *
+ * INV_LN_2	1.0 / Log base e of 2.
+ *
+ * INVALID_MAX_ENTROPY
+ * INVALID_MIN_ENTROPY
+ * 		Impossible entropy values per bit.
  */
 #define OCTET_BITS 8
-#define DEF_DEPTH 12
-#define HISTORY_BITS (sizeof(u_int64_t)*OCTET_BITS)
-#define BACK_HISTORY (HISTORY_BITS/2)
-#define MAX_DEPTH (BACK_HISTORY-1)
+#define DEF_DEPTH 8
+#define MAX_HISTORY_BITS (sizeof(u_int64_t)*OCTET_BITS)
+#define MAX_BACK_HISTORY (MAX_HISTORY_BITS/2)
+#define DEF_HISTORY MAX_BACK_HISTORY
+#define MAX_DEPTH (MAX_BACK_HISTORY-1)
+#define DEF_DEPTH_FACTOR 4
+#define INV_LN_2 ((double)1.442695040888963407359924681001892137426646)
+#define INVALID_MAX_ENTROPY ((double)-1.0)
+#define INVALID_MIN_ENTROPY ((double)10.0)
+
 
 
 /*
@@ -137,30 +165,49 @@ typedef u_int64_t tally_t;
  * 	    hist[0][11] = count when b2b1b0 was '100'
  * 	    hist[0][4]  = count when b1b0 was '00'
  * 	    hist[0][7]  = count when b1b0 was '11'
+ *
+ * NOTE: On struct total_ent, the high_entropy is invalid if high_bit_cnt <= 0.
+ *       On struct total_ent, the low_entropy is invalid if low_bit_cnt <= 0.
  */
 struct bitslice {
     int bitnum;		/* bit position in record, 0 ==> low order bit */
     u_int64_t history;	/* history of bit positions, bit 0 ==> most recent */
     u_int64_t count;	/* number of bits processed for this position */
-    tally_t *hist[BACK_HISTORY+1];  /* cur and historical xor tally arrays */
+    int depth_lim;	/* bit_depth used in this slice */
+    int back_lim;	/* back_history used in this slice */
+    double max_ent[MAX_BACK_HISTORY+1];	/* max entropy estimates of hist[i] */
+    double min_ent[MAX_BACK_HISTORY+1];	/* min entropy estimates of hist[i] */
+    double entropy_high;		/* overall high estimate of entropy */
+    double entropy_low;			/* overall low estimate of entropy */
+    tally_t *hist[MAX_BACK_HISTORY+1];  /* cur & historical xor tally arrays */
 };
+static struct total_ent {
+    double high_entropy;	/* high estimate of overall entropy */
+    int high_bit_cnt;		/* bits used to compute high_entropy or -1 */
+    double low_entropy;		/* low estimate of overall entropy */
+    int low_bit_cnt;		/* bits used to compute low_entropy or -1 */
+    double med_entropy;		/* median entropy or INVALID_MAX_ENTROPY */
+} overall;
 
 
 /*
  * usage
  */
 static char *usage =
-	"[-h] [-v verbose] [-b bit_depth] [-r rec_size] [-k] [-m map_file]\n"
-	"    [-c] input_file\n"
+	"[-h] [-v verbose] [-c rept_cycle] [-b bit_depth] [-B back_history]\n"
+	"\t[-f depth_factor] [-r rec_size] [-k] [-m map_file] [-C] input_file\n"
 	"\n"
 	"\t-h			print this help message and exit\n"
 	"\n"
 	"\t-v verbose		verbose level (def: 0 ==> none)\n"
-	"\t-b bit_depth		tally depth for each record bit (def: 12)\n"
+	"\t-c rept_cycle	report each rept_cycle records (def: at end)\n"
+	"\t-b bit_depth		tally depth for each record bit (def: 8)\n"
+	"\t-B back_history	xor diffs this many records back (def: 32)\n"
+	"\t-f depth_factor	ave slot tally needed for entropy (def: 4) \n"
 	"\t-r rec_size		read rec_size octet records (def: line mode)\n"
 	"\t-k			do not discard newlines (not with -r)\n"
 	"\t-m map_file		octet mask, octet to bit map, bit mask\n"
-	"\t-c			keep after 1st = before 1st ; (not with -r)\n"
+	"\t-C			keep after 1st = before 1st ; (not with -r)\n"
 	"\n"
 	"\tinput_file\tfile to read records from (- ==> stdin)\n"
 	"\n"
@@ -210,7 +257,10 @@ static char *usage =
 	"\t/  2f      ?  3f      O  4f      _  5f      o  6f\n";
 static char *program;		/* our name */
 static int v_flag = 0;		/* verbosity level */
+static int rept_cycle = 0;	/* >= 0 ==> rept entropy every so many recs */
 static int bit_depth = DEF_DEPTH;  /* tally bit depth for each bit in record */
+static int back_history = DEF_HISTORY;	/* xor diff back this many records */
+static int depth_factor = DEF_DEPTH_FACTOR;	/* ave slot tally needed */
 static int rec_size = 0;	/* > 0 ==> record size, 0 ==> line mode */
 static int line_mode = 1;	/* 0 ==> read binary recs, 1 ==> read lines */
 static char *map_file = NULL;	/* x ==> remove, v ==> keep, else remove */
@@ -346,11 +396,12 @@ static void load_map_file(char *map_file);
 static tally_t *alloc_bittally(int depth);
 static struct bitslice *alloc_bitslice(int bitnum, int depth);
 static void record_bit(struct bitslice *slice, int value);
-static void dbg(int level, char *fmt, ...);
 static int read_record(FILE *input, u_int8_t *buf, int buf_size,
 		       int read_line);
 static int pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf,
 		       int *outbuf_len);
+static void rept_entropy(struct bitslice **slice, int bit_buf_used);
+static void dbg(int level, char *fmt, ...);
 
 
 /*
@@ -405,7 +456,7 @@ main(int argc, char *argv[])
     FILE *input;		/* stream from which to read records */
     u_int8_t *raw_buf;		/* malloc-ed raw record input buffer */
     int raw_len;		/* length of raw record in octets */
-    u_int8_t *bit_buf;		/* malloc-ed bit buffer of 0x00 or 0x01 octets */
+    u_int8_t *bit_buf;		/* malloc-ed buffer of 0x00 or 0x01 octets */
     int bit_len;		/* length bit_buf */
     int bit_buf_used;		/* number of octets in bit_buf being used */
     struct bitslice **bits;	/* bits[i] points to bitslice for bit i */
@@ -449,6 +500,15 @@ main(int argc, char *argv[])
 		program, (rec_size+1) * OCTET_BITS + 1);
 	exit(3);
     }
+
+    /*
+     * setup for overall entropy calculation
+     */
+    overall.high_entropy = INVALID_MAX_ENTROPY;
+    overall.high_bit_cnt = 0;
+    overall.low_entropy = INVALID_MIN_ENTROPY;
+    overall.low_bit_cnt = 0;
+    overall.med_entropy = INVALID_MAX_ENTROPY;
 
     /*
      * process records, one at a time
@@ -525,14 +585,60 @@ main(int argc, char *argv[])
 	    record_bit(bits[i], bit_buf[i]);
 	}
 
+	/*
+	 * report the entropy, if needed
+	 */
+	if (rept_cycle > 0 && ((recnum+1) % rept_cycle) == 0) {
+	    rept_entropy(bits, bit_buf_used);
+	    if (overall.high_bit_cnt > 0) {
+		printf("after record %llu for %d bits: "
+		       "high entropy: %f\n",
+		       (u_int64_t)recnum+1,
+		       overall.high_bit_cnt, overall.high_entropy);
+	    }
+	    if (overall.low_bit_cnt > 0) {
+		printf("after record %llu for %d bits: "
+		       "low entropy: %f\n",
+		       (u_int64_t)recnum+1,
+		       overall.low_bit_cnt, overall.low_entropy);
+	    }
+	    if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
+		printf("after record %llu median entropy: %f\n",
+		       overall.med_entropy);
+	    }
+	}
+
     } while (++recnum > 0);
 
     /*
      * final entropy processing
-     *
-     * XXX - write this
      */
     dbg(1, "final entropy processing");
+    rept_entropy(bits, bit_buf_used);
+    if (overall.high_bit_cnt > 0) {
+	printf("record count: %llu with %d bits: "
+	       "high entropy: %f\n",
+	       (u_int64_t)recnum+1,
+	       overall.high_bit_cnt, overall.high_entropy);
+    } else {
+	printf("Error: not enough data to calculate high entropy estimate\n");
+    }
+    if (overall.low_bit_cnt > 0) {
+	printf("record count: %llu with %d bits: "
+	       "low entropy: %f\n",
+	       (u_int64_t)recnum+1,
+	       overall.low_bit_cnt, overall.low_entropy);
+    } else {
+	printf("Error: not enough data to calculate low entropy estimate\n");
+    }
+    if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
+	printf("\nhigh, median and low entropy: %f %f %f\n",
+	       overall.high_entropy,
+	       overall.med_entropy,
+	       overall.low_entropy);
+    } else {
+	printf("Error: not enough data to calculate median entropy estimate\n");
+    }
 
     /*
      * all done!  -- Jessica Noll, Age 2
@@ -555,7 +661,7 @@ parse_args(int argc, char **argv)
      *
      * See the usage static string for details on command line options
      */
-    while ((i = getopt(argc, argv, "hv:b:r:km:c")) != -1) {
+    while ((i = getopt(argc, argv, "hv:c:b:B:f:r:km:C")) != -1) {
 	switch (i) {
 	case 'h':	/* print usage message and then exit */
 	    fprintf(stderr, "usage: %s %s\n", program, usage);
@@ -564,8 +670,17 @@ parse_args(int argc, char **argv)
 	case 'v':	/* verbose level */
 	    v_flag = strtol(optarg, NULL, 0);
 	    break;
+	case 'c':	/* tally depth */
+	    rept_cycle = strtol(optarg, NULL, 0);
+	    break;
 	case 'b':	/* tally depth */
 	    bit_depth = strtol(optarg, NULL, 0);
+	    break;
+	case 'B':	/* back history depth */
+	    back_history = strtol(optarg, NULL, 0);
+	    break;
+	case 'f':	/* ave slot tally needed for entropy calculation */
+	    depth_factor = strtol(optarg, NULL, 0);
 	    break;
 	case 'r':	/* binary record size */
 	    rec_size = strtol(optarg, NULL, 0);
@@ -577,12 +692,12 @@ parse_args(int argc, char **argv)
 	case 'm':	/* map filename */
 	    map_file = optarg;
 	    break;
-	case 'c':	/* cookie trim */
+	case 'C':	/* cookie trim */
 	    cookie_trim = 1;
 	    break;
 	default:
 	    fprintf(stderr, "usage: %s %s\n", program, usage);
-	    exit(4);
+	    exit(6);
 	}
     }
 
@@ -591,23 +706,55 @@ parse_args(int argc, char **argv)
      */
     if (optind >= argc) {
 	fprintf(stderr, "usage: %s %s\n", program, usage);
-	exit(5);
+	exit(7);
     }
     filename = argv[optind];
     dbg(1, "main: input file: %s", filename);
+
+    /*
+     * check report cycle
+     */
+    if (rept_cycle < 0) {
+	fprintf(stderr, "%s: -c rept_cycle must be >= 0\n", program);
+	exit(8);
+    }
+    dbg(1, "main: report cycle: %d", rept_cycle);
 
     /*
      * check bit depth
      */
     if (bit_depth < 1) {
 	fprintf(stderr, "%s: -b bit_depth must be > 0\n", program);
-	exit(6);
+	exit(9);
     }
     if (bit_depth > MAX_DEPTH) {
 	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
-	exit(7);
+	exit(10);
     }
     dbg(1, "main: bit_depth: %d", bit_depth);
+
+    /*
+     * check back history
+     */
+    if (back_history < 1) {
+	fprintf(stderr, "%s: -B back_history must be > 0\n", program);
+	exit(11);
+    }
+    if (bit_depth > MAX_BACK_HISTORY) {
+	fprintf(stderr, "%s: -B back_history must <= %d\n",
+		program, MAX_BACK_HISTORY);
+	exit(12);
+    }
+    dbg(1, "main: back_history: %d", back_history);
+
+    /*
+     * check depth factor
+     */
+    if (depth_factor < 1) {
+	fprintf(stderr, "%s: -f depth_factor must be > 0\n", program);
+	exit(13);
+    }
+    dbg(1, "main: depth_factor: %d", depth_factor);
 
     /*
      * check raw record size, if given
@@ -615,7 +762,7 @@ parse_args(int argc, char **argv)
     if (line_mode == 0 && rec_size <= 0) {
 	fprintf(stderr, "%s: -r rec_size: %d must be > 0\n",
 		program, rec_size);
-	exit(8);
+	exit(14);
     } else if (line_mode == 0) {
 	dbg(1, "main: binary record size: %d", rec_size);
     } else {
@@ -628,7 +775,7 @@ parse_args(int argc, char **argv)
      */
     if (line_mode == 0 && keep_newline) {
 	fprintf(stderr, "%s: -r rec_size and -k conflict\n", program);
-	exit(9);
+	exit(15);
     }
 
     /*
@@ -636,7 +783,7 @@ parse_args(int argc, char **argv)
      */
     if (line_mode == 0 && cookie_trim) {
 	fprintf(stderr, "%s: -r rec_size and -c conflict\n", program);
-	exit(10);
+	exit(16);
     }
 
     /*
@@ -684,7 +831,7 @@ load_map_file(char *map_file)
      */
     if (map_file == 0) {
 	fprintf(stderr, "%s: map_file arg is NULL\n", program);
-	exit(11);
+	exit(16);
     }
     buf[BUFSIZ] = '\0';
 
@@ -696,7 +843,7 @@ load_map_file(char *map_file)
     if (map == NULL) {
 	fprintf(stderr, "%s: failed to open map file: %s\n",
 		program, map_file);
-	exit(12);
+	exit(17);
     }
 
     /*
@@ -746,7 +893,7 @@ load_map_file(char *map_file)
 		fprintf(stderr, "%s: map file: %s line %d charmask "
 				"may only have x's and c's\n",
 			program, map_file, linenum);
-		exit(13);
+		exit(18);
 
 	    }
 
@@ -759,7 +906,7 @@ load_map_file(char *map_file)
 	    char_mask = strdup(p);
 	    if (char_mask == NULL) {
 		fprintf(stderr, "%s: failed to malloc charmask\n", program);
-		exit(14);
+		exit(19);
 	    }
 
 	/*
@@ -776,7 +923,7 @@ load_map_file(char *map_file)
 		fprintf(stderr, "%s: map file: %s line %d bitmask "
 				"may only have x's and b's\n",
 			program, map_file, linenum);
-		exit(15);
+		exit(20);
 
 	    }
 
@@ -789,7 +936,7 @@ load_map_file(char *map_file)
 	    bit_mask = strdup(p);
 	    if (bit_mask == NULL) {
 		fprintf(stderr, "%s: failed to malloc bitmask\n", program);
-		exit(16);
+		exit(21);
 	    }
 
 	/*
@@ -818,7 +965,7 @@ load_map_file(char *map_file)
 	    octet_map[octet] = strdup(buf+3);
 	    if (octet_map[octet] == NULL) {
 		fprintf(stderr, "%s: failed to malloc octet map\n", program);
-		exit(17);
+		exit(22);
 	    }
 
 	/*
@@ -827,7 +974,7 @@ load_map_file(char *map_file)
 	} else {
 	    fprintf(stderr, "%s: map file: %s line %d unknown directive\n",
 		    program, map_file, linenum);
-	    exit(18);
+	    exit(23);
 	}
     }
     dbg(4, "load_map_file: processed %d lines from map file: %s",
@@ -872,13 +1019,13 @@ alloc_bittally(int depth)
     if (depth < 1) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d must be > 0\n",
 		program, depth);
-	exit(19);
+	exit(24);
     }
     values = (1<<(depth+1));
     if (values < 0 || values == 0) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d is too large\n",
 		program, depth);
-	exit(20);
+	exit(25);
     }
 
     /*
@@ -889,8 +1036,12 @@ alloc_bittally(int depth)
 	fprintf(stderr, "%s: alloc_bittally: "
 			"not enough memory for depth: %d\n",
 		program, depth);
-	exit(21);
+	exit(26);
     }
+
+    /*
+     * record tally length
+     */
     ret[0] = values;
 
     /*
@@ -923,7 +1074,7 @@ alloc_bitslice(int bitnum, int depth)
     if (depth < 1) {
 	fprintf(stderr, "%s: alloc_bittbl: depth: %d must be > 0\n",
 		program, depth);
-	exit(22);
+	exit(27);
     }
 
     /*
@@ -932,7 +1083,7 @@ alloc_bitslice(int bitnum, int depth)
     ret = (struct bitslice *)malloc(sizeof(struct bitslice));
     if (ret == NULL) {
 	fprintf(stderr, "%s: cannot allocate struct bitslice\n", program);
-	exit(23);
+	exit(28);
     }
 
     /*
@@ -941,12 +1092,27 @@ alloc_bitslice(int bitnum, int depth)
     ret->bitnum = bitnum;
     ret->history = 0;
     ret->count = 0;
+    ret->back_lim = back_history;
+    ret->depth_lim = depth;
+
+    /*
+     * clear entropy estimates
+     */
+    for (i=0; i <= MAX_BACK_HISTORY; ++i) {
+	ret->max_ent[i] = INVALID_MAX_ENTROPY;
+	ret->min_ent[i] = INVALID_MIN_ENTROPY;
+    }
+    ret->entropy_high = INVALID_MAX_ENTROPY;
+    ret->entropy_low = INVALID_MIN_ENTROPY;
 
     /*
      * allocate tally tables for past xor differences
      */
-    for (i=0; i <= BACK_HISTORY; ++i) {
+    for (i=0; i <= back_history; ++i) {
 	ret->hist[i] = alloc_bittally(depth);
+    }
+    while (i <= MAX_BACK_HISTORY) {
+	ret->hist[i++] = NULL;
     }
 
     /*
@@ -977,7 +1143,7 @@ record_bit(struct bitslice *slice, int value)
      */
     if (slice == NULL) {
 	fprintf(stderr, "%s: record_bit: slice is NULL\n", program);
-	exit(24);
+	exit(29);
     }
 
     /*
@@ -996,7 +1162,7 @@ record_bit(struct bitslice *slice, int value)
      * be sure that slice->history is full of bit values from actual
      * records.  Count the bit that we just recorded.
      */
-    if (++slice->count < BACK_HISTORY+bit_depth) {
+    if (++slice->count < back_history+bit_depth) {
 	return;
     }
 
@@ -1012,7 +1178,7 @@ record_bit(struct bitslice *slice, int value)
 	++slice->hist[0][offset + cur];
 
 	/* tally the i-depth value xor-ed with previous history */
-	for (back=1; back <= BACK_HISTORY; ++back) {
+	for (back=1; back <= back_history; ++back) {
 
 	    /* get the i-depth value going back in history h bits */
 	    past = (u_int32_t)(slice->history >> back) & ((offset<<1)-1);
@@ -1156,29 +1322,29 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
      */
     if (inbuf == NULL) {
 	fprintf(stderr, "%s: trim_record: inbuf is NULL\n", program);
-	exit(25);
+	exit(30);
     }
     if (inbuf_len < 0) {
 	fprintf(stderr, "%s: trim_record: buf_len <= 0: %d\n",
 		program, inbuf_len);
-	exit(26);
+	exit(31);
     }
     if (outbuf == NULL) {
 	fprintf(stderr, "%s: trim_record: outbuf is NULL\n", program);
-	exit(27);
+	exit(32);
     }
     if (outbuf_len == NULL) {
 	fprintf(stderr, "%s: trim_record: outbuf_len is NULL\n", program);
-	exit(28);
+	exit(33);
     }
     if (*outbuf == NULL) {
 	fprintf(stderr, "%s: trim_record: outbuf points to a NULL\n", program);
-	exit(29);
+	exit(34);
     }
     if (*outbuf_len <= 0) {
 	fprintf(stderr, "%s: trim_record: outbuf_len points to %d <= 0\n",
 		program, *outbuf_len);
-	exit(30);
+	exit(35);
     }
 
     /*
@@ -1329,7 +1495,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	    fprintf(stderr, "%s: trim_record: failed to realloc outbuf from "
 		    	    "%d octets to %d octets\n",
 		    program, *outbuf_len, outbuf_need);
-	    exit(31);
+	    exit(36);
 	}
 	dbg(8, "outbuf grew from %d octets to %d octets",
 	       *outbuf_len, outbuf_need);
@@ -1422,6 +1588,254 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
      * return use count
      */
     return outbuf_need;
+}
+
+
+/*
+ * rept_entropy - report on current entropy estimate
+ */
+static void
+rept_entropy(struct bitslice **slice, int bit_buf_used)
+{
+    struct bitslice *bit;	/* current bit slice */
+    u_int64_t count;		/* number of bit ops for a bitslice */
+    double inv_count;		/* 1.0/count as a double */
+    int depth_lim;		/* how deep we can calculate entropy */
+    int back_lim;		/* how far back the slice uses history */
+    int bit_num;		/* slice bit number */
+    int hist_num;		/* history level, 0 ==> current */
+    int depth_num;		/* bit depth level */
+    tally_t *tally;		/* tally array for a given bit & history lvl */
+    u_int32_t offset;		/* offset within tally array being used */
+    double p_i;			/* proability of finding an i value */
+    double entropy;		/* entropy sum being calculated */
+    double max_entropy;		/* max entropy found for a given history */
+    int max_ent_depth;		/* depth at which max entropy was found */
+    double min_entropy;		/* min entropy found for a given history */
+    int min_ent_depth;		/* depth at which max entropy was found */
+    double high_bit_ent;	/* high entropy estimate for bit */
+    int high_ent_depth;		/* depth at which max bit entropy was found */
+    int high_ent_hist;		/* hist at which max entropy was found */
+    double low_bit_ent;		/* low entropy estimate for bit */
+    int low_ent_depth;		/* depth at which min bit entropy was found */
+    int low_ent_hist;		/* hist at which min entropy was found */
+    double total_high_ent;	/* overall high entropy total for all bits */
+    int total_high_cnt;		/* number of bits calculating total_high_ent */
+    double total_low_ent;	/* overall low entropy total for all bits */
+    int total_low_cnt;		/* number of bits calculating total_low_ent */
+    int i;
+
+    /*
+     * firewall
+     */
+    if (slice == NULL) {
+	fprintf(stderr, "%s: rept_entropy: slice array is NULL\n", program);
+	exit(37);
+    }
+    if (bit_buf_used <= 0) {
+	dbg(2, "rept_entropy: no bit slices to process\n");
+	return;
+    }
+
+    /*
+     * calculate entropy of each slice
+     */
+    total_high_ent = INVALID_MAX_ENTROPY;
+    total_high_cnt = 0;
+    total_low_ent = INVALID_MAX_ENTROPY;
+    total_low_cnt = 0;
+    for (bit_num=0; bit_num < bit_buf_used; ++bit_num) {
+
+	/* firewall */
+	if (slice[bit_num] == NULL) {
+	    dbg(5, "rept_entropy: slice[%d] is NULL", bit_num);
+	    continue;
+	}
+	if (slice[bit_num]->bitnum != bit_num) {
+	    fprintf(stderr, "%s: rept_entropy: slice %d != %d",
+		    program, slice[bit_num]->bitnum, bit_num);
+	    exit(38);
+	}
+
+	/*
+	 * determine the parameters of our count
+	 */
+	count = slice[bit_num]->count;
+	if (count <= 0) {
+	    dbg(9, "rept_entropy: slice[%d] has no count", bit_num);
+	    continue;
+	}
+	inv_count = 1.0 / (double)count;
+	depth_lim = slice[bit_num]->depth_lim;
+	back_lim = slice[bit_num]->back_lim;
+	while (depth_lim > 0 && (count/depth_factor) > (1ULL << depth_lim)) {
+	    --depth_lim;
+	}
+	if (depth_lim <= 0) {
+	    dbg(9, "rept_entropy: slice[%d] has too low of a count: %llu",
+		    bit_num, count);
+	    continue;
+	}
+	dbg(8, "rept_entropy: slice[%d]: count: %lld  depth_lim: %d",
+	       bit_num, count, depth_lim);
+
+	/*
+	 * setup to calculate high and low entropy estimates for bit
+	 */
+	high_bit_ent = INVALID_MAX_ENTROPY;
+	high_ent_depth = -1;
+	high_ent_hist = -1;
+	low_bit_ent = INVALID_MIN_ENTROPY;
+	low_ent_depth = -1;
+	low_ent_hist = -1;
+
+	/*
+	 * calculcate entropy for the back history of this bit
+	 */
+	for (hist_num=0; hist_num <= back_history; ++hist_num) {
+
+	    /*
+	     * setup to process the tally array
+	     */
+	    tally = slice[bit_num]->hist[hist_num];
+	    if (tally == NULL) {
+		fprintf(stderr, "%s: rept_entropy: NULL slice[%d]->hist[%d]",
+			program, bit_num, hist_num);
+		exit(39);
+	    }
+	    max_entropy = INVALID_MAX_ENTROPY;
+	    max_ent_depth = -1;
+	    min_entropy = INVALID_MIN_ENTROPY;
+	    min_ent_depth = -1;
+
+	    /*
+	     * calculate the entropy to approproate depths
+	     */
+	    for (offset=2, depth_num=1;
+		 depth_num <= depth_lim;
+		 offset <<= 1, ++depth_num) {
+
+		/*
+		 * calculate entropy at this depth
+		 *
+		 * - sum p_i ln_2(p_i);
+		 */
+		entropy = 0.0;
+		for (i=0; i < offset; ++i) {
+
+		    /* proability of find this value at this depth */
+		    p_i = (double)tally[offset+i] * inv_count;
+
+		    /* add to entropy sum */
+		    entropy += p_i * log(p_i);
+		}
+		/* entropy is the - sum , and covert log base 2 */
+		entropy = entropy * -INV_LN_2;
+		dbg(9, "rept_entropy: slice[%d]: hist:%d depth:%d: entropy:%f",
+			bit_num, hist_num, offset, entropy);
+
+		/*
+		 * keep track of maximum and minimum entropy levels
+		 */
+		if (entropy > max_entropy) {
+		    max_entropy = entropy;
+		    max_ent_depth = depth_num;
+		    if (max_entropy > high_bit_ent) {
+			high_bit_ent = max_entropy;
+			high_ent_depth = max_ent_depth;
+			high_ent_hist = hist_num;
+			dbg(6, "rept_entropy: slice[%d]: hist:%d depth:%d "
+			       "new max_entropy:%f",
+			       bit_num, high_ent_hist, high_ent_depth,
+			       high_bit_ent);
+		    }
+		}
+		if (entropy < min_entropy) {
+		    min_entropy = entropy;
+		    min_ent_depth = depth_num;
+		    if (min_entropy < low_bit_ent) {
+			low_bit_ent = min_entropy;
+			low_ent_depth = min_ent_depth;
+			low_ent_hist = hist_num;
+			dbg(6, "rept_entropy: slice[%d]: hist:%d depth:%d "
+			       "new min_entropy:%f",
+			       bit_num, low_ent_hist, low_ent_depth,
+			       low_ent_depth);
+		    }
+		}
+	    }
+
+	    /*
+	     * record entropy for this back history
+	     */
+	    if (max_entropy > INVALID_MAX_ENTROPY) {
+		slice[bit_num]->max_ent[hist_num] = max_entropy;
+		dbg(8, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		       "max_entropy:%f",
+		       bit_num, hist_num, max_ent_depth, max_entropy);
+	    } else {
+		dbg(7, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		       "no max_entropy",
+		       bit_num, hist_num, max_ent_depth);
+	    }
+	    if (min_entropy < INVALID_MAX_ENTROPY) {
+		slice[bit_num]->min_ent[hist_num] = min_entropy;
+		dbg(8, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		       "min_entropy:%f",
+		       bit_num, hist_num, min_ent_depth, min_entropy);
+	    } else {
+		dbg(7, "rept_entropy: slice[%d]: hist:%d depth:%d "
+		       "no min_entropy",
+		       bit_num, hist_num, min_ent_depth);
+	    }
+	}
+
+	/*
+	 * record entropy for this bit
+	 */
+	if (high_bit_ent > INVALID_MAX_ENTROPY) {
+	    slice[bit_num]->entropy_high = high_bit_ent;
+	    dbg(5, "rept_entropy: slice[%d]: hist:%d depth:%d high entropy:%f",
+		   bit_num, high_ent_hist, high_ent_depth,
+		   high_bit_ent);
+	    total_high_ent += high_bit_ent;
+	    ++total_high_cnt;
+	} else {
+	    dbg(6, "rept_entropy: slice[%d]: max_entropy unknown", bit_num);
+	}
+	if (low_bit_ent < INVALID_MIN_ENTROPY) {
+	    slice[bit_num]->entropy_low = low_bit_ent;
+	    dbg(5, "rept_entropy: slice[%d]: hist:%d depth:%d low entropy:%f",
+		   bit_num, low_ent_hist, low_ent_depth,
+		   low_bit_ent);
+	    total_low_ent += low_bit_ent;
+	    ++total_low_cnt;
+	} else {
+	    dbg(6, "rept_entropy: slice[%d]: max_entropy unknown", bit_num);
+	}
+    }
+
+    /*
+     * compute overall entropy, if possible
+     */
+    if (total_high_cnt > 0) {
+	overall.high_entropy = total_high_ent;
+	overall.high_bit_cnt = total_high_cnt;
+	dbg(4, "rept_entropy: overall high entropy: %f", overall.high_entropy);
+	dbg(4, "rept_entropy: overall high bits: %d", overall.high_bit_cnt);
+    }
+    if (total_low_cnt > 0) {
+	overall.low_entropy = total_low_ent;
+	overall.low_bit_cnt = total_low_cnt;
+	dbg(4, "rept_entropy: overall low entropy: %f", overall.low_entropy);
+	dbg(4, "rept_entropy: overall low bits: %d", overall.low_bit_cnt);
+    }
+    if (total_high_cnt > 0 && total_low_cnt > 0) {
+	overall.med_entropy = (total_high_ent + total_low_ent) / 2.0;
+	dbg(4, "rept_entropy: overall median entropy: %f",
+	       overall.med_entropy);
+    }
+    return;
 }
 
 
