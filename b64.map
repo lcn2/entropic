@@ -1,0 +1,98 @@
+# b64.map - Base 64 encoding
+#
+# [A-Za-z+/] ==> [0 .. 63]
+#
+# Using RFC 2045 encoding.
+
+# @(#) $Revision$
+# @(#) $Id$
+# @(#) $Source$
+#
+# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+#
+# Share and enjoy! :-)
+
+41=000000	# 'A'
+42=000001	# 'B'
+43=000010	# 'C'
+44=000011	# 'D'
+45=000100	# 'E'
+46=000101	# 'F'
+47=000110	# 'G'
+48=000111	# 'H'
+49=001000	# 'I'
+4a=001001	# 'J'
+4b=001010	# 'K'
+4c=001011	# 'L'
+4d=001100	# 'M'
+4e=001101	# 'N'
+4f=001110	# 'O'
+50=001111	# 'P'
+51=010000	# 'Q'
+52=010001	# 'R'
+53=010010	# 'S'
+54=010011	# 'T'
+55=010100	# 'U'
+56=010101	# 'V'
+57=010110	# 'W'
+58=010111	# 'X'
+59=011000	# 'Y'
+5a=011001	# 'Z'
+61=011010	# 'a'
+62=011011	# 'b'
+63=011100	# 'c'
+64=011101	# 'd'
+65=011110	# 'e'
+66=011111	# 'f'
+67=100000	# 'g'
+68=100001	# 'h'
+69=100010	# 'i'
+6a=100011	# 'j'
+6b=100100	# 'k'
+6c=100101	# 'l'
+6d=100110	# 'm'
+6e=100111	# 'n'
+6f=101000	# 'o'
+70=101001	# 'p'
+71=101010	# 'q'
+72=101011	# 'r'
+73=101100	# 's'
+74=101101	# 't'
+75=101110	# 'u'
+76=101111	# 'v'
+77=110000	# 'w'
+78=110001	# 'x'
+79=110010	# 'y'
+7a=110011	# 'z'
+30=110100	# '0'
+31=110101	# '1'
+32=110110	# '2'
+33=110111	# '3'
+34=111000	# '4'
+35=111001	# '5'
+35=111010	# '6'
+36=111011	# '7'
+37=111100	# '8'
+39=111101	# '9'
+2b=111110	# '+'
+2f=111111	# '/'

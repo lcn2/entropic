@@ -1,0 +1,56 @@
+# hex.map - Base 16 encoding
+#
+# [0-9A-F] ==> [0..15]
+# [0-9a-f] ==> [0..15]
+
+# @(#) $Revision$
+# @(#) $Id$
+# @(#) $Source$
+#
+# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+#
+# Share and enjoy! :-)
+
+30=0000		# '0'
+31=0001		# '1'
+32=0010		# '2'
+33=0011		# '3'
+34=0100		# '4'
+35=0101		# '5'
+36=0110		# '6'
+37=0111		# '7'
+38=1000		# '8'
+39=1001		# '9'
+41=1010		# 'A'
+42=1011		# 'B'
+43=1100		# 'C'
+44=1101		# 'D'
+45=1110		# 'E'
+46=1111		# 'F'
+
+61=1010		# 'a'
+62=1011		# 'b'
+63=1100		# 'c'
+64=1101		# 'd'
+65=1110		# 'e'
+66=1111		# 'f'

@@ -1,0 +1,288 @@
+# 7bit.map - Encode octets into 7 bit values, ignoring the high order bit
+#
+# ASCII and Meta+ASCII characters map into the same 7 bit values.
+
+# @(#) $Revision$
+# @(#) $Id$
+# @(#) $Source$
+#
+# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+#
+# Share and enjoy! :-)
+
+00=0000000	# NUL '\0' ^@
+01=0000001	# SOH	   ^a
+02=0000010	# STX	   ^b
+03=0000011	# ETX	   ^c
+04=0000100	# EOT	   ^d
+05=0000101	# ENQ	   ^e
+06=0000110	# ACK	   ^f
+07=0000111	# BEL '\a' ^g
+08=0001000	# BS  '\b' ^h
+09=0001001	# HT  '\t' ^i
+0a=0001010	# LF  '\n' ^j
+0b=0001011	# VT  '\v' ^k
+0c=0001100	# FF  '\f' ^l
+0d=0001101	# CR  '\r' ^m
+0e=0001110	# SO	   ^n
+0f=0001111	# SI	   ^o
+10=0010000	# DLE	   ^p
+11=0010001	# DC1	   ^q
+12=0010010	# DC2	   ^r
+13=0010011	# DC3	   ^s
+14=0010100	# DC4	   ^t
+15=0010101	# NAK	   ^u
+16=0010110	# SYN	   ^v
+17=0010111	# ETB	   ^w
+18=0011000	# CAN	   ^x
+19=0011001	# EM	   ^y
+1a=0011010	# SUB	   ^z
+1b=0011011	# ESC
+1c=0011100	# FS
+1d=0011101	# GS
+1e=0011110	# RS
+1f=0011111	# US
+20=0100000	# SPACE ' '
+21=0100001	# !
+22=0100010	# "
+23=0100011	# #
+24=0100100	# $
+25=0100101	# %
+26=0100110	# &
+27=0100111	# '
+28=0101000	# (
+29=0101001	# (
+2a=0101010	# *
+2b=0101011	# +
+2c=0101100	# ,
+2d=0101101	# -
+2e=0101110	# .
+2f=0101111	# /
+30=0110000	# 0
+31=0110001	# 1
+32=0110010	# 2
+33=0110011	# 3
+34=0110100	# 4
+35=0110101	# 5
+36=0110110	# 6
+37=0110111	# 7
+38=0111000	# 8
+39=0111001	# 9
+3a=0111010	# :
+3b=0111011	# ;
+3c=0111100	# <
+3d=0111101	# =
+3e=0111110	# >
+3f=0111111	# ?
+40=1000000	# @
+41=1000001	# A
+42=1000010	# B
+43=1000011	# C
+44=1000100	# D
+45=1000101	# E
+46=1000110	# F
+47=1000111	# G
+48=1001000	# H
+49=1001001	# I
+4a=1001010	# J
+4b=1001011	# K
+4c=1001100	# L
+4d=1001101	# M
+4e=1001110	# N
+4f=1001111	# O
+50=1010000	# P
+51=1010001	# Q
+52=1010010	# R
+53=1010011	# S
+54=1010100	# T
+55=1010101	# U
+56=1010110	# V
+57=1010111	# W
+58=1011000	# X
+59=1011001	# Y
+5a=1011010	# Z
+5b=1011011	# [
+5c=1011100	# \ '\\'
+5d=1011101	# ]
+5e=1011110	# ^
+5f=1011111	# _
+60=1100000	# `
+61=1100001	# a
+62=1100010	# b
+63=1100011	# c
+64=1100100	# d
+65=1100101	# e
+66=1100110	# f
+67=1100111	# g
+68=1101000	# h
+69=1101001	# i
+6a=1101010	# j
+6b=1101011	# k
+6c=1101100	# l
+6d=1101101	# m
+6e=1101110	# n
+6f=1101111	# o
+70=1110000	# p
+71=1110001	# q
+72=1110010	# r
+73=1110011	# s
+74=1110100	# t
+75=1110101	# u
+76=1110110	# v
+77=1110111	# w
+78=1111000	# x
+79=1111001	# y
+7a=1111010	# z
+7b=1111011	# {
+7c=1111100	# |
+7d=1111101	# }
+7e=1111110	# ~
+7f=1111111	# DEL
+80=0000000	# Meta + NUL
+81=0000001	# Meta + SOH
+82=0000010	# Meta + STX
+83=0000011	# Meta + ETX
+84=0000100	# Meta + EOT
+85=0000101	# Meta + ENQ
+86=0000110	# Meta + ACK
+87=0000111	# Meta + BEL
+88=0001000	# Meta + BS
+89=0001001	# Meta + HT
+8a=0001010	# Meta + LF
+8b=0001011	# Meta + VT
+8c=0001100	# Meta + FF
+8d=0001101	# Meta + CR
+8e=0001110	# Meta + SO
+8f=0001111	# Meta + SI
+90=0010000	# Meta + DLE
+91=0010001	# Meta + DC1
+92=0010010	# Meta + DC2
+93=0010011	# Meta + DC3
+94=0010100	# Meta + DC4
+95=0010101	# Meta + NAK
+96=0010110	# Meta + SYN
+97=0010111	# Meta + ETB
+98=0011000	# Meta + CAN
+99=0011001	# Meta + EM
+9a=0011010	# Meta + SUB
+9b=0011011	# Meta + ESC
+9c=0011100	# Meta + FS
+9d=0011101	# Meta + GS
+9e=0011110	# Meta + RS
+9f=0011111	# Meta + US
+a0=0100000	# Meta + SPACE
+a1=0100001	# Meta + !
+a2=0100010	# Meta + "
+a3=0100011	# Meta + #
+a4=0100100	# Meta + $
+a5=0100101	# Meta + %
+a6=0100110	# Meta + &
+a7=0100111	# Meta + '
+a8=0101000	# Meta + (
+a9=0101001	# Meta + (
+aa=0101010	# Meta + *
+ab=0101011	# Meta + +
+ac=0101100	# Meta + ,
+ad=0101101	# Meta + -
+ae=0101110	# Meta + .
+af=0101111	# Meta + /
+b0=0110000	# Meta + 0
+b1=0110001	# Meta + 1
+b2=0110010	# Meta + 2
+b3=0110011	# Meta + 3
+b4=0110100	# Meta + 4
+b5=0110101	# Meta + 5
+b6=0110110	# Meta + 6
+b7=0110111	# Meta + 7
+b8=0111000	# Meta + 8
+b9=0111001	# Meta + 9
+ba=0111010	# Meta + :
+bb=0111011	# Meta + ;
+bc=0111100	# Meta + <
+bd=0111101	# Meta + =
+be=0111110	# Meta + >
+bf=0111111	# Meta + ?
+c0=1000000	# Meta + @
+c1=1000001	# Meta + A
+c2=1000010	# Meta + B
+c3=1000011	# Meta + C
+c4=1000100	# Meta + D
+c5=1000101	# Meta + E
+c6=1000110	# Meta + F
+c7=1000111	# Meta + G
+c8=1001000	# Meta + H
+c9=1001001	# Meta + I
+ca=1001010	# Meta + J
+cb=1001011	# Meta + K
+cc=1001100	# Meta + L
+cd=1001101	# Meta + M
+ce=1001110	# Meta + N
+cf=1001111	# Meta + O
+d0=1010000	# Meta + P
+d1=1010001	# Meta + Q
+d2=1010010	# Meta + R
+d3=1010011	# Meta + S
+d4=1010100	# Meta + T
+d5=1010101	# Meta + U
+d6=1010110	# Meta + V
+d7=1010111	# Meta + W
+d8=1011000	# Meta + X
+d9=1011001	# Meta + Y
+da=1011010	# Meta + Z
+db=1011011	# Meta + [
+dc=1011100	# Meta + \
+dd=1011101	# Meta + ]
+de=1011110	# Meta + ^
+df=1011111	# Meta + _
+e0=1100000	# Meta + `
+e1=1100001	# Meta + a
+e2=1100010	# Meta + b
+e3=1100011	# Meta + c
+e4=1100100	# Meta + d
+e5=1100101	# Meta + e
+e6=1100110	# Meta + f
+e7=1100111	# Meta + g
+e8=1101000	# Meta + h
+e9=1101001	# Meta + i
+ea=1101010	# Meta + j
+eb=1101011	# Meta + k
+ec=1101100	# Meta + l
+ed=1101101	# Meta + m
+ee=1101110	# Meta + n
+ef=1101111	# Meta + o
+f0=1110000	# Meta + p
+f1=1110001	# Meta + q
+f2=1110010	# Meta + r
+f3=1110011	# Meta + s
+f4=1110100	# Meta + t
+f5=1110101	# Meta + u
+f6=1110110	# Meta + v
+f7=1110111	# Meta + w
+f8=1111000	# Meta + x
+f9=1111001	# Meta + y
+fa=1111010	# Meta + z
+fb=1111011	# Meta + {
+fc=1111100	# Meta + |
+fd=1111101	# Meta + }
+fe=1111110	# Meta + ~
+ff=1111111	# Meta + DEL

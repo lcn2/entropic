@@ -1,0 +1,161 @@
+# ascii.map - Base 128 ASCII encoding
+#
+# Encode each ASCII character as a 7 bit value based on the ASCII value.
+# Non-ASCII characters are not encoded.
+
+# @(#) $Revision$
+# @(#) $Id$
+# @(#) $Source$
+#
+# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+#
+# Share and enjoy! :-)
+
+00=0000000	# NUL '\0' ^@
+01=0000001	# SOH	   ^a
+02=0000010	# STX	   ^b
+03=0000011	# ETX	   ^c
+04=0000100	# EOT	   ^d
+05=0000101	# ENQ	   ^e
+06=0000110	# ACK	   ^f
+07=0000111	# BEL '\a' ^g
+08=0001000	# BS  '\b' ^h
+09=0001001	# HT  '\t' ^i
+0a=0001010	# LF  '\n' ^j
+0b=0001011	# VT  '\v' ^k
+0c=0001100	# FF  '\f' ^l
+0d=0001101	# CR  '\r' ^m
+0e=0001110	# SO	   ^n
+0f=0001111	# SI	   ^o
+10=0010000	# DLE	   ^p
+11=0010001	# DC1	   ^q
+12=0010010	# DC2	   ^r
+13=0010011	# DC3	   ^s
+14=0010100	# DC4	   ^t
+15=0010101	# NAK	   ^u
+16=0010110	# SYN	   ^v
+17=0010111	# ETB	   ^w
+18=0011000	# CAN	   ^x
+19=0011001	# EM	   ^y
+1a=0011010	# SUB	   ^z
+1b=0011011	# ESC
+1c=0011100	# FS
+1d=0011101	# GS
+1e=0011110	# RS
+1f=0011111	# US
+20=0100000	# SPACE ' '
+21=0100001	# !
+22=0100010	# "
+23=0100011	# #
+24=0100100	# $
+25=0100101	# %
+26=0100110	# &
+27=0100111	# '
+28=0101000	# (
+29=0101001	# (
+2a=0101010	# *
+2b=0101011	# +
+2c=0101100	# ,
+2d=0101101	# -
+2e=0101110	# .
+2f=0101111	# /
+30=0110000	# 0
+31=0110001	# 1
+32=0110010	# 2
+33=0110011	# 3
+34=0110100	# 4
+35=0110101	# 5
+36=0110110	# 6
+37=0110111	# 7
+38=0111000	# 8
+39=0111001	# 9
+3a=0111010	# :
+3b=0111011	# ;
+3c=0111100	# <
+3d=0111101	# =
+3e=0111110	# >
+3f=0111111	# ?
+40=1000000	# @
+41=1000001	# A
+42=1000010	# B
+43=1000011	# C
+44=1000100	# D
+45=1000101	# E
+46=1000110	# F
+47=1000111	# G
+48=1001000	# H
+49=1001001	# I
+4a=1001010	# J
+4b=1001011	# K
+4c=1001100	# L
+4d=1001101	# M
+4e=1001110	# N
+4f=1001111	# O
+50=1010000	# P
+51=1010001	# Q
+52=1010010	# R
+53=1010011	# S
+54=1010100	# T
+55=1010101	# U
+56=1010110	# V
+57=1010111	# W
+58=1011000	# X
+59=1011001	# Y
+5a=1011010	# Z
+5b=1011011	# [
+5c=1011100	# \ '\\'
+5d=1011101	# ]
+5e=1011110	# ^
+5f=1011111	# _
+60=1100000	# `
+61=1100001	# a
+62=1100010	# b
+63=1100011	# c
+64=1100100	# d
+65=1100101	# e
+66=1100110	# f
+67=1100111	# g
+68=1101000	# h
+69=1101001	# i
+6a=1101010	# j
+6b=1101011	# k
+6c=1101100	# l
+6d=1101101	# m
+6e=1101110	# n
+6f=1101111	# o
+70=1110000	# p
+71=1110001	# q
+72=1110010	# r
+73=1110011	# s
+74=1110100	# t
+75=1110101	# u
+76=1110110	# v
+77=1110111	# w
+78=1111000	# x
+79=1111001	# y
+7a=1111010	# z
+7b=1111011	# {
+7c=1111100	# |
+7d=1111101	# }
+7e=1111110	# ~
+7f=1111111	# DEL

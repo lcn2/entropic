@@ -1,0 +1,92 @@
+# b32.map - Base 32 encoding
+#
+# [A-Z0-5] ==> [0..31]
+# [a-z0-5] ==> [0..31]
+
+# @(#) $Revision$
+# @(#) $Id$
+# @(#) $Source$
+#
+# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+#
+# Share and enjoy! :-)
+
+41=00000	# 'A'
+42=00001	# 'B'
+43=00010	# 'C'
+44=00011	# 'D'
+45=00100	# 'E'
+46=00101	# 'F'
+47=00110	# 'G'
+48=00111	# 'H'
+49=01000	# 'I'
+4a=01001	# 'J'
+4b=01010	# 'K'
+4c=01011	# 'L'
+4d=01100	# 'M'
+4e=01101	# 'N'
+4f=01110	# 'O'
+50=01111	# 'P'
+51=10000	# 'Q'
+52=10001	# 'R'
+53=10010	# 'S'
+54=10011	# 'T'
+55=10100	# 'U'
+56=10101	# 'V'
+57=10110	# 'W'
+58=10111	# 'X'
+59=11000	# 'Y'
+5a=11001	# 'Z'
+30=11010	# '0'
+31=11011	# '1'
+32=11100	# '2'
+33=11101	# '3'
+34=11110	# '4'
+35=11111	# '5'
+
+61=00000	# 'a'
+62=00001	# 'b'
+63=00010	# 'c'
+64=00011	# 'd'
+65=00100	# 'e'
+66=00101	# 'f'
+67=00110	# 'g'
+68=00111	# 'h'
+69=01000	# 'i'
+6a=01001	# 'j'
+6b=01010	# 'k'
+6c=01011	# 'l'
+6d=01100	# 'm'
+6e=01101	# 'n'
+6f=01110	# 'o'
+70=01111	# 'p'
+71=10000	# 'q'
+72=10001	# 'r'
+73=10010	# 's'
+74=10011	# 't'
+75=10100	# 'u'
+76=10101	# 'v'
+77=10110	# 'w'
+78=10111	# 'x'
+79=11000	# 'y'
+7a=11001	# 'z'
