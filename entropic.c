@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.6 $
- * @(#) $Id: entropic.c,v 1.6 2003/01/30 12:50:36 chongo Exp chongo $
+ * @(#) $Revision: 1.7 $
+ * @(#) $Id: entropic.c,v 1.7 2003/01/30 12:53:53 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -142,7 +142,7 @@ struct bitslice {
     int bitnum;		/* bit position in record, 0 ==> low order bit */
     u_int64_t history;	/* history of bit positions, bit 0 ==> most recent */
     u_int64_t count;	/* number of bits processed for this position */
-    tally_t *hist[MAX_DEPTH+1];	/* tally table for various xor differences */
+    tally_t *hist[BACK_HISTORY+1];  /* cur and historical xor tally arrays */
 };
 
 
@@ -169,7 +169,7 @@ static char *usage =
 	"\t# comments start with a # and go thru the end of the line\n"
 	"\t# empty and blank lines are ignored\n"
 	"\n"
-	"\t# The charmask line contains only x's and c's after the =\n"
+	"sizeof(bits[0]));\t# The charmask line contains only x's and c's after the =\n"
 	"\t# The charmask is optional, default is process all chars\n"
 	"\tcharmask=[xc]+	# comments at the end of a line are ignored\n"
 	"\n"
@@ -408,6 +408,9 @@ main(int argc, char *argv[])
     u_int8_t *bit_buf;		/* malloced bit buffer of 0x00 or 0x01 octets */
     int bit_len;		/* length bit_buf */
     int bit_buf_used;		/* number of octets in bit_buf being used */
+    struct bitslice **bits;	/* bits[i] points to bitslice for bit i */
+    int bits_len;		/* length of bits pointer array */
+    int i;
 
     /*
      * parse args
@@ -451,11 +454,14 @@ main(int argc, char *argv[])
      * process records, one at a time
      */
     recnum = 0;
+    bits_len = 0;
+    bits = NULL;
     do {
 
 	/*
 	 * read the next record
 	 */
+	dbg(4, "main: reading record: %llu", (u_int64_t)recnum);
 	raw_len = read_record(input, raw_buf, rec_size, line_mode);
 	if (raw_len <= 0) {
 	    break;
@@ -471,7 +477,45 @@ main(int argc, char *argv[])
 		    bit_buf_used);
 	    continue;
 	}
-	dbg(3, "main: bit buffer has %d bits", bit_buf_used);
+	dbg(4, "main: bit buffer has %d bits", bit_buf_used);
+
+	/*
+	 * allocate tally_t for any new bit positions
+	 */
+	if (bit_buf_used > bits_len) {
+
+	    /*
+	     * expand or create bits pointer array
+	     */
+	    if (bits == NULL) {
+		bits = (struct bitslice **) malloc(bit_buf_used *
+						   sizeof(struct bitslice *));
+	    } else {
+		bits = (struct bitslice **) realloc(bits,
+						    bit_buf_used *
+						    sizeof(struct bitslice *));
+	    }
+	    if (bits == NULL) {
+		fprintf(stderr, "%s: failed to allocate %d bitslice pointers",
+			program, bit_buf_used);
+		exit(4);
+	    }
+	    dbg(2, "expanding processing from %d bits to %d bits",
+		   bits_len, bit_buf_used);
+
+	    /*
+	     * create new tally_t's for the new bits
+	     */
+	    for (i=bits_len; i < bit_buf_used; ++i) {
+		bits[i] = alloc_bitslice(i, bit_depth);
+		if (bits[i] == NULL) {
+		    fprintf(stderr, "%s: cannot allocate tally_t for bid %d",
+			    program, i);
+		    exit(5);
+		}
+	    }
+	    bits_len = bit_buf_used;
+	}
 
     } while (++recnum > 0);
 
@@ -678,7 +722,7 @@ load_map_file(char *map_file)
 	if (len <= 0) {
 	    continue;
 	}
-	dbg(8, "load_map_file: line %d: %s", linenum, buf);
+	dbg(9, "load_map_file: line %d: %s", linenum, buf);
 
 	/*
 	 * case: charmask line
@@ -689,6 +733,7 @@ load_map_file(char *map_file)
 	     * must have only one or more x's and c's
 	     */
 	    p = buf + sizeof("charmask=")-1;
+	    dbg(4, "charmask: %s", p);
 	    if (strspn(p, "xc") != len-(sizeof("charmask=")-1)) {
 		fprintf(stderr, "%s: map file: %s line %d charmask "
 				"may only have x's and c's\n",
@@ -718,7 +763,7 @@ load_map_file(char *map_file)
 	     * must have only one or more x's and b's
 	     */
 	    p = buf + sizeof("bitmask=")-1;
-	    dbg(4, "bitmask: %s", p);
+	    dbg(4, "bit mask: %s", p);
 	    if (strspn(p, "xb") != len-(sizeof("bitmask=")-1)) {
 		fprintf(stderr, "%s: map file: %s line %d bitmask "
 				"may only have x's and b's\n",
@@ -821,7 +866,7 @@ alloc_bittally(int depth)
 		program, depth);
 	exit(19);
     }
-    values = 1<<(depth+1);
+    values = (1<<(depth+1));
     if (values < 0 || values == 0) {
 	fprintf(stderr, "%s: alloc_bittally: depth: %d is too large\n",
 		program, depth);
@@ -831,7 +876,7 @@ alloc_bittally(int depth)
     /*
      * allocate and zero
      */
-    ret = (tally_t *)calloc(values, sizeof(long));
+    ret = (tally_t *)calloc(values, sizeof(tally_t));
     if (ret == NULL) {
 	fprintf(stderr, "%s: alloc_bittally: "
 			"not enough memory for depth: %d\n",
@@ -889,7 +934,7 @@ alloc_bitslice(int bitnum, int depth)
     ret->count = 0;
 
     /*
-     * allocate tally tables for current and past xor differences
+     * allocate tally tables for past xor differences
      */
     for (i=0; i <= BACK_HISTORY; ++i) {
 	ret->hist[i] = alloc_bittally(depth);
