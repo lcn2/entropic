@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.4 $
- * @(#) $Id: entropic.c,v 1.4 2003/01/30 07:25:13 chongo Exp chongo $
+ * @(#) $Revision: 1.5 $
+ * @(#) $Id: entropic.c,v 1.5 2003/01/30 10:18:56 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -467,7 +467,7 @@ main(int argc, char *argv[])
 	bit_buf_used = pre_process(raw_buf, raw_len, &bit_buf, &bit_len);
 	if (bit_buf_used <= 0) {
 	    /* EOF or error */
-	    dbg(2, "main: skipping record, bit_buf_used returned: %d <= 0",
+	    dbg(3, "main: skipping record, bit_buf_used returned: %d <= 0",
 		    bit_buf_used);
 	    continue;
 	}
@@ -568,7 +568,7 @@ parse_args(int argc, char **argv)
 	dbg(1, "main: binary record size: %d", rec_size);
     } else {
 	rec_size = BUFSIZ;
-	dbg(1, "main: line mode of up to %d octets\n", rec_size);
+	dbg(1, "main: line mode of up to %d octets", rec_size);
     }
 
     /*
@@ -639,7 +639,7 @@ load_map_file(char *map_file)
     /*
      * open the map file
      */
-    dbg(3, "load_map_file: opening map file: %s", map_file);
+    dbg(1, "load_map_file: opening map file: %s", map_file);
     map = fopen(map_file, "r");
     if (map == NULL) {
 	fprintf(stderr, "%s: failed to open map file: %s\n",
@@ -678,7 +678,7 @@ load_map_file(char *map_file)
 	if (len <= 0) {
 	    continue;
 	}
-	dbg(8, "load_map_file: line %d: %s\n", linenum, buf);
+	dbg(8, "load_map_file: line %d: %s", linenum, buf);
 
 	/*
 	 * case: charmask line
@@ -689,7 +689,7 @@ load_map_file(char *map_file)
 	     * must have only one or more x's and c's
 	     */
 	    p = buf + sizeof("charmask=")-1;
-	    if (strspn(p, "xc") != len-sizeof("charmask=")-1) {
+	    if (strspn(p, "xc") != len-(sizeof("charmask=")-1)) {
 		fprintf(stderr, "%s: map file: %s line %d charmask "
 				"may only have x's and c's\n",
 			program, map_file, linenum);
@@ -718,7 +718,8 @@ load_map_file(char *map_file)
 	     * must have only one or more x's and b's
 	     */
 	    p = buf + sizeof("bitmask=")-1;
-	    if (strspn(p, "xb") != len-sizeof("bitmask=")-1) {
+	    dbg(4, "bitmask: %s", p);
+	    if (strspn(p, "xb") != len-(sizeof("bitmask=")-1)) {
 		fprintf(stderr, "%s: map file: %s line %d bitmask "
 				"may only have x's and b's\n",
 			program, map_file, linenum);
@@ -776,7 +777,7 @@ load_map_file(char *map_file)
 	    exit(18);
 	}
     }
-    dbg(3, "load_map_file: processed %d lines from map file: %s",
+    dbg(4, "load_map_file: processed %d lines from map file: %s",
 	     linenum, map_file);
     return;
 }
@@ -1003,12 +1004,12 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	if (ferror(input)) {
 	    dbg(1, "fread error: %s", strerror(errno));
 	} else if (feof(input)) {
-	    dbg(2, "EOF in fread");
+	    dbg(1, "EOF in fread");
 	} else if (rec_len <= 0) {
 	    dbg(1, "no EOF or error, but fread returned: %d", rec_len);
 	    rec_len = -1;	/* force error */
 	} else {
-	    dbg(3, "fread %d octets for record %lld",
+	    dbg(4, "fread %d octets for record %lld",
 		    buf_size, (u_int64_t)recnum);
 	}
 
@@ -1020,7 +1021,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	if (ferror(input)) {
 	    dbg(1, "fgets error: %s", strerror(errno));
 	} else if (feof(input)) {
-	    dbg(2, "EOF in fgets");
+	    dbg(1, "EOF in fgets");
 	}
 	rec_len = -1;
     } else {
@@ -1031,7 +1032,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	    dbg(1, "no EOF or error, but fgets returned %d octets", rec_len);
 	    rec_len = -1;	/* force error */
 	} else {
-	    dbg(3, "fgets read %d octet line for record %lld",
+	    dbg(4, "fgets read %d octet line for record %lld",
 		rec_len, (u_int64_t)recnum);
 	}
     }
@@ -1090,6 +1091,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     char *p;
     u_int8_t *q;
     u_int8_t *r;
+    char *s;
 
     /*
      * firewall
@@ -1124,8 +1126,10 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     /*
      * do nothing if input buffer is empty
      */
+    dbg(10, "inital inbuf pre newline trim: ((%s))", inbuf);
+    dbg(9, "pre inbuf len: %d", orig_inbuf_len);
     if (inbuf_len <= 0) {
-	dbg(6, "trim_record: empty inbuf");
+	dbg(5, "trim_record: empty inbuf");
 	return 0;
     }
 
@@ -1151,6 +1155,8 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	    }
 	}
     }
+    dbg(8, "inbuf len: %d", inbuf_len);
+    dbg(8, "1st inbuf: %s", inbuf);
     if (inbuf_len <= 0) {
 	/* trimed the line down to nothing */
 	return 0;
@@ -1179,12 +1185,12 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	 */
 	equal = strchr(inbuf, '=');
 	if (equal == NULL) {
-	    dbg(4, "trim_record: line has no =, discarding line");
+	    dbg(5, "trim_record: line has no =, discarding line");
 	    return 0;
 	}
 	semi = strchr(equal+1, ';');
 	if (semi == NULL) {
-	    dbg(4, "trim_record: no ; after 1st =, discarding line");
+	    dbg(5, "trim_record: no ; after 1st =, discarding line");
 	    return 0;
 	}
 
@@ -1194,6 +1200,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	inbuf_len = semi-equal;
 	memmove(inbuf, equal+1, inbuf_len);
 	inbuf[inbuf_len] = '\0';
+	dbg(9, "inbuf after cookie trim: %s", inbuf);
     }
 
     /*
@@ -1207,7 +1214,12 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	/*
 	 * walk the charmask looking for c's
 	 */
-	for (q=inbuf, p=char_mask; *p != '\0'; ++p) {
+	if ((i = strlen(char_mask)) > inbuf_len) {
+	    s = char_mask + inbuf_len;
+	} else {
+	    s = char_mask + i;
+	}
+	for (q=inbuf, p=char_mask; *p != '\0' && p < s; ++p) {
 
 	    /* skip non-c chars (presumably x's) */
 	    if (*p != 'c') {
@@ -1218,13 +1230,17 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	    *q++ = inbuf[p - char_mask];
 	}
 	inbuf_len = q - inbuf;
+	inbuf[inbuf_len] = '\0';	/* for debugging */
+	dbg(9, "char_mask: %s", char_mask);
+	dbg(9, "inbuf after char_mask: %s", inbuf);
+	dbg(7, "inbuf trimmed to %d octets", inbuf_len);
     }
 
     /*
      * do nothing if trimmed input buffer is empty
      */
     if (inbuf_len <= 0) {
-	dbg(6, "trim_record: trimmed inbuf is empty");
+	dbg(5, "trim_record: trimmed inbuf is empty");
 	return 0;
     }
 
@@ -1240,7 +1256,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
      * do nothing if we will produce no bits
      */
     if (outbuf_need <= 0) {
-	dbg(6, "trim_record: line will yield no bits");
+	dbg(5, "trim_record: line will yield no bits");
 	return 0;
     }
 
@@ -1257,6 +1273,8 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 		    program, *outbuf_len, outbuf_need);
 	    exit(31);
 	}
+	dbg(8, "outbuf grew from %d octets to %d octets",
+	       *outbuf_len, outbuf_need);
 	*outbuf_len = outbuf_need;
 	*outbuf[outbuf_need] = '\0';
     }
@@ -1274,14 +1292,23 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	}
     }
     *r = '\0';
-    if (r - *outbuf != outbuf_need) {
-	fprintf(stderr, "%s: trim_record: should have produced %d bits, "
-			"produced %d instead\n",
-		program, outbuf_need, (r - *outbuf));
-	exit(32);
+
+    /*
+     * special binary debugging output
+     */
+    if (v_flag >= 7) {
+	r = *outbuf;
+	dbg(7, "initialy have %d bits", outbuf_need);
+	fprintf(stderr, "Debug[7]: encoding: ");
+	for (i=0; i < outbuf_need; ++i) {
+	    if (r[i]) {
+		fputc('1', stderr);
+	    } else {
+		fputc('0', stderr);
+	    }
+	}
+	fputc('\n', stderr);
     }
-    dbg(5, "inbuf was %d octets, trimmed to %d octets, produced %d bits",
-	    orig_inbuf_len, inbuf_len, outbuf_need);
 
     /*
      * bit mask, if requested
@@ -1295,7 +1322,12 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	 * walk the charmask looking for b's
 	 */
 	r = *outbuf;
-	for (q= *outbuf, p=bit_mask; *p != '\0'; ++p) {
+	if ((i = strlen(bit_mask)) > outbuf_need) {
+	    s = bit_mask + outbuf_need;
+	} else {
+	    s = bit_mask + i;
+	}
+	for (q=r, p=bit_mask; *p != '\0' && p < s; ++p) {
 
 	    /* skip non-b chars (presumably x's) */
 	    if (*p != 'b') {
@@ -1305,8 +1337,27 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	    /* save this inbuf character */
 	    *q++ = r[p - bit_mask];
 	}
-	dbg(5, "masked %d bits down to %d bits", outbuf_need, q - r);
+	dbg(9, "bit_mask: %s", bit_mask);
+	dbg(8, "masked %d bits down to %d bits", outbuf_need, q - r);
 	outbuf_need = q - r;
+	r[outbuf_need] = '\0';	/* for debugging */
+
+	/*
+	 * special binary debugging output
+	 */
+	if (v_flag >= 7) {
+	    r = *outbuf;
+	    fprintf(stderr, "Debug[7]: the bits: ");
+	    for (i=0; i < outbuf_need; ++i) {
+		if (r[i]) {
+		    fputc('1', stderr);
+		} else {
+		    fputc('0', stderr);
+		}
+	    }
+	    fputc('\n', stderr);
+	    dbg(7, "masked down to %d octets", outbuf_need);
+	}
     }
 
     /*
@@ -1327,14 +1378,18 @@ dbg(int level, char *fmt, ...)
     /* start the var arg setup and fetch our first arg */
     va_start(ap, fmt);
 
-    /* print the message */
-    fprintf(stderr, "Debug[%d]: ", level);
-    if (fmt == NULL) {
-	fmt = "<<NULL>> format";
+    /* if high enough debug, print a message */
+    if (level <= v_flag) {
+
+	/* print the message */
+	fprintf(stderr, "Debug[%d]: ", level);
+	if (fmt == NULL) {
+	    fmt = "<<NULL>> format";
+	}
+	vfprintf(stderr, fmt, ap);
+	fputc('\n', stderr);
+	fflush(stderr);
     }
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
-    fflush(stderr);
 
     /* clean up */
     va_end(ap);
