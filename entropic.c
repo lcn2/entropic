@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.12 $
- * @(#) $Id: entropic.c,v 1.12 2003/01/31 03:19:35 chongo Exp chongo $
+ * @(#) $Revision: 1.13 $
+ * @(#) $Id: entropic.c,v 1.13 2003/01/31 04:25:32 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -172,6 +172,7 @@ typedef u_int64_t tally_t;
 struct bitslice {
     int bitnum;		/* bit position in record, 0 ==> low order bit */
     u_int64_t history;	/* history of bit positions, bit 0 ==> most recent */
+    u_int64_t ops;	/* total operations on bit, including ignored ones */
     u_int64_t count;	/* number of bits processed for this position */
     int depth_lim;	/* bit_depth used in this slice */
     int back_lim;	/* back_history used in this slice */
@@ -589,7 +590,7 @@ main(int argc, char *argv[])
 	 * report the entropy, if needed
 	 */
 	if (rept_cycle > 0 && ((recnum+1) % rept_cycle) == 0) {
-	    rept_entropy(bits, bit_buf_used);
+	    rept_entropy(bits, bits_len);
 	    if (overall.high_bit_cnt > 0) {
 		printf("after record %llu for %d bits: "
 		       "high entropy: %f\n",
@@ -614,7 +615,7 @@ main(int argc, char *argv[])
      * final entropy processing
      */
     dbg(1, "final entropy processing");
-    rept_entropy(bits, bit_buf_used);
+    rept_entropy(bits, bits_len);
     if (overall.high_bit_cnt > 0) {
 	printf("record count: %llu with %d bits: "
 	       "high entropy: %f\n",
@@ -1091,6 +1092,7 @@ alloc_bitslice(int bitnum, int depth)
      */
     ret->bitnum = bitnum;
     ret->history = 0;
+    ret->ops = 0;
     ret->count = 0;
     ret->back_lim = back_history;
     ret->depth_lim = depth;
@@ -1162,9 +1164,10 @@ record_bit(struct bitslice *slice, int value)
      * be sure that slice->history is full of bit values from actual
      * records.  Count the bit that we just recorded.
      */
-    if (++slice->count < back_history+bit_depth) {
+    if (++slice->ops < back_history+bit_depth) {
 	return;
     }
+    ++slice->count;
 
     /*
      * process just the values
@@ -1741,8 +1744,8 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 			entropy += p_i * log(p_i);
 		    }
 		}
-		/* entropy is the - sum , and covert log base 2 */
-		entropy = entropy * -INV_LN_2;
+		/* entropy is the - sum , and covert log base 2 per bit */
+		entropy = entropy * -INV_LN_2 / depth_num;
 		dbg(9, "rept_entropy: slice[%d]: hist:%d depth:%d: entropy:%f",
 			bit_num, hist_num, depth_num, entropy);
 		if (entropy < 0.0) {
