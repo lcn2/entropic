@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.7 $
- * @(#) $Id: entropic.c,v 1.7 2003/01/30 12:53:53 chongo Exp chongo $
+ * @(#) $Revision: 1.8 $
+ * @(#) $Id: entropic.c,v 1.8 2003/01/30 13:45:14 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -48,7 +48,7 @@
  * DEF_DEPTH	default tally depth (-b) for each record bit
  *
  * HISTORY_BITS	We must have this many records before we have a full
- * 		history's worth of values for a given bit postion in a record.
+ * 		history's worth of values for a given bit position in a record.
  * 		Bit histories are kept in a u_int64_t.
  *
  * BACK_HISTORY	When we form xors of current values and history values,
@@ -130,7 +130,7 @@ typedef u_int64_t tally_t;
  *
  *      assuming that the -b bit_depth was deep enough and hist[i] != NULL.
  *
- * 	As a specical case, hist[0] points to the tally table
+ * 	As a special case, hist[0] points to the tally table
  * 	of the current values only.  No xor is performed, thus:
  *
  * 	    hist[0][10] = count when b2b1b0 was '010'
@@ -403,9 +403,9 @@ main(int argc, char *argv[])
     extern char *optarg;	/* argument to current option */
     extern int optind;		/* first argv-element that is not an option */
     FILE *input;		/* stream from which to read records */
-    u_int8_t *raw_buf;		/* malloced raw record input buffer */
+    u_int8_t *raw_buf;		/* malloc-ed raw record input buffer */
     int raw_len;		/* length of raw record in octets */
-    u_int8_t *bit_buf;		/* malloced bit buffer of 0x00 or 0x01 octets */
+    u_int8_t *bit_buf;		/* malloc-ed bit buffer of 0x00 or 0x01 octets */
     int bit_len;		/* length bit_buf */
     int bit_buf_used;		/* number of octets in bit_buf being used */
     struct bitslice **bits;	/* bits[i] points to bitslice for bit i */
@@ -461,7 +461,7 @@ main(int argc, char *argv[])
 	/*
 	 * read the next record
 	 */
-	dbg(4, "main: reading record: %llu", (u_int64_t)recnum);
+	dbg(5, "main: reading record: %llu", (u_int64_t)recnum);
 	raw_len = read_record(input, raw_buf, rec_size, line_mode);
 	if (raw_len <= 0) {
 	    break;
@@ -477,10 +477,10 @@ main(int argc, char *argv[])
 		    bit_buf_used);
 	    continue;
 	}
-	dbg(4, "main: bit buffer has %d bits", bit_buf_used);
+	dbg(5, "main: bit buffer has %d bits", bit_buf_used);
 
 	/*
-	 * allocate tally_t for any new bit positions
+	 * allocate bitslices for any new bit positions
 	 */
 	if (bit_buf_used > bits_len) {
 
@@ -488,9 +488,12 @@ main(int argc, char *argv[])
 	     * expand or create bits pointer array
 	     */
 	    if (bits == NULL) {
+		dbg(2, "creating bits up thru %d", bit_buf_used);
 		bits = (struct bitslice **) malloc(bit_buf_used *
 						   sizeof(struct bitslice *));
 	    } else {
+		dbg(2, "expanding bits from %d bits to %d bits",
+		       bits_len, bit_buf_used);
 		bits = (struct bitslice **) realloc(bits,
 						    bit_buf_used *
 						    sizeof(struct bitslice *));
@@ -500,8 +503,6 @@ main(int argc, char *argv[])
 			program, bit_buf_used);
 		exit(4);
 	    }
-	    dbg(2, "expanding processing from %d bits to %d bits",
-		   bits_len, bit_buf_used);
 
 	    /*
 	     * create new tally_t's for the new bits
@@ -515,6 +516,13 @@ main(int argc, char *argv[])
 		}
 	    }
 	    bits_len = bit_buf_used;
+	}
+
+	/*
+	 * record bit values
+	 */
+	for (i=0; i < bit_buf_used; ++i) {
+	    record_bit(bits[i], bit_buf[i]);
 	}
 
     } while (++recnum > 0);
@@ -840,7 +848,7 @@ load_map_file(char *map_file)
  *
  * The tally array layout:
  *
- * 	unused				(1 value)
+ * 	length in values		(1 value)
  * 	unused				(1 value)
  * 	tally for depth of 1 bit	(2 values)
  * 	tally for depth of 2 bits	(4 values)
@@ -883,6 +891,7 @@ alloc_bittally(int depth)
 		program, depth);
 	exit(21);
     }
+    ret[0] = values;
 
     /*
      * return tally array
@@ -952,7 +961,7 @@ alloc_bitslice(int bitnum, int depth)
  *
  * given:
  * 	slice	bitslice record for a given bit position in our records
- * 	value	next value for the given bit postion (0 or 1)
+ * 	value	next value for the given bit position (0 or 1)
  */
 static void
 record_bit(struct bitslice *slice, int value)
@@ -974,7 +983,7 @@ record_bit(struct bitslice *slice, int value)
     /*
      * push the value onto the history
      *
-     * The new value is shifted into the 0th bit postion of our history.
+     * The new value is shifted into the 0th bit position of our history.
      * Bit values are either 0 and 1 (non-zero).
      */
     slice->history <<= 1;
@@ -987,7 +996,7 @@ record_bit(struct bitslice *slice, int value)
      * be sure that slice->history is full of bit values from actual
      * records.  Count the bit that we just recorded.
      */
-    if (++slice->count < HISTORY_BITS) {
+    if (++slice->count < BACK_HISTORY+bit_depth) {
 	return;
     }
 
@@ -997,18 +1006,18 @@ record_bit(struct bitslice *slice, int value)
     for (depth=1, offset=1; depth <= bit_depth; ++depth, offset <<= 1) {
 
 	/* get the i-depth value - (offset-1) is an i-bit mask of 1's */
-	cur = (u_int32_t)slice->history ^ (offset-1);
+	cur = (u_int32_t)slice->history & ((offset<<1)-1);
 
 	/* tally the i-depth value - no x-or with history in the 0 case */
 	++slice->hist[0][offset + cur];
 
-	/* tally the i-depth value xored with previous history */
+	/* tally the i-depth value xor-ed with previous history */
 	for (back=1; back <= BACK_HISTORY; ++back) {
 
 	    /* get the i-depth value going back in history h bits */
-	    past = (u_int32_t)(slice->history >> back) ^ (offset-1);
+	    past = (u_int32_t)(slice->history >> back) & ((offset<<1)-1);
 
-	    /* tally the i-depth value xored with history back h bits */
+	    /* tally the i-depth value xor-ed with history back h bits */
 	    ++slice->hist[back][offset + (cur^past)];
 	}
     }
@@ -1077,7 +1086,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	    dbg(1, "no EOF or error, but fgets returned %d octets", rec_len);
 	    rec_len = -1;	/* force error */
 	} else {
-	    dbg(4, "fgets read %d octet line for record %lld",
+	    dbg(6, "fgets read %d octet line for record %lld",
 		rec_len, (u_int64_t)recnum);
 	}
     }
@@ -1112,15 +1121,15 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
  *
  * The output buffer is a string of octets of either 0x00 or 0x01 value.
  * This function is given a pointer to the output buffer pointer.
- * This function is given a pointer malloced length of outbuf.
- * The output buffer must be a malloced buffer because, if needed,
+ * This function is given a pointer malloc-ed length of outbuf.
+ * The output buffer must be a malloc-ed buffer because, if needed,
  * this function will realloc it to a larger size.
  *
  * given:
  * 	inbuf		the raw record buffer
  * 	inbuf_len	length of inbuf in octets
- *	outbuf		pointer to a malloced output bit buffer
- * 	outbuf_len	pointer to the malloced length of outbuf
+ *	outbuf		pointer to a malloc-ed output bit buffer
+ * 	outbuf_len	pointer to the malloc-ed length of outbuf
  *
  * returns:
  * 	the amount of outbuf used
@@ -1171,7 +1180,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     /*
      * do nothing if input buffer is empty
      */
-    dbg(10, "inital inbuf pre newline trim: ((%s))", inbuf);
+    dbg(10, "initial inbuf pre newline trim: ((%s))", inbuf);
     dbg(9, "pre inbuf len: %d", orig_inbuf_len);
     if (inbuf_len <= 0) {
 	dbg(5, "trim_record: empty inbuf");
@@ -1203,16 +1212,16 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     dbg(8, "inbuf len: %d", inbuf_len);
     dbg(8, "1st inbuf: %s", inbuf);
     if (inbuf_len <= 0) {
-	/* trimed the line down to nothing */
+	/* trimmed the line down to nothing */
 	return 0;
     }
 
     /*
      * cookie trim, if requested
      *
-     * Programs such as cookie_monister will output lines of the form:
+     * Programs such as cookie_monster will output lines of the form:
      *
-     *    [optional_simestamp:] Set-cookie: COOKIE_NAME=VALUE; stuff ...
+     *    [optional_timestamp:] Set-cookie: COOKIE_NAME=VALUE; stuff ...
      *
      * This trim will reduce the above line down to just:
      *
@@ -1343,7 +1352,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
      */
     if (v_flag >= 7) {
 	r = *outbuf;
-	dbg(7, "initialy have %d bits", outbuf_need);
+	dbg(7, "initially have %d bits", outbuf_need);
 	fprintf(stderr, "Debug[7]: encoding: ");
 	for (i=0; i < outbuf_need; ++i) {
 	    if (r[i]) {
@@ -1358,7 +1367,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     /*
      * bit mask, if requested
      *
-     * If butmask is a string, then we keep only those bits
+     * If bitmask is a string, then we keep only those bits
      * in the output buffer that correspond to a 'b' in the charmask.
      */
     if (bit_mask != NULL) {
