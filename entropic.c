@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.9 $
- * @(#) $Id: entropic.c,v 1.9 2003/01/30 14:19:41 chongo Exp chongo $
+ * @(#) $Revision: 1.10 $
+ * @(#) $Id: entropic.c,v 1.10 2003/01/30 14:39:07 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -473,7 +473,7 @@ main(int argc, char *argv[])
 	bit_buf_used = pre_process(raw_buf, raw_len, &bit_buf, &bit_len);
 	if (bit_buf_used <= 0) {
 	    /* EOF or error */
-	    dbg(3, "main: skipping record, bit_buf_used returned: %d <= 0",
+	    dbg(5, "main: skipping record, bit_buf_used returned: %d <= 0",
 		    bit_buf_used);
 	    continue;
 	}
