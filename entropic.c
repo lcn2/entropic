@@ -1,8 +1,8 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.14 $
- * @(#) $Id: entropic.c,v 1.14 2003/01/31 04:47:16 chongo Exp chongo $
+ * @(#) $Revision: 1.15 $
+ * @(#) $Id: entropic.c,v 1.15 2003/01/31 18:06:41 chongo Exp chongo $
  * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
@@ -195,22 +195,23 @@ static struct total_ent {
  * usage
  */
 static char *usage =
-	"[-h] [-v verbose] [-c rept_cycle] [-b bit_depth] [-B back_history]\n"
-	"\t[-f depth_factor] [-r rec_size] [-k] [-m map_file] [-C] input_file\n"
+	"[-h] [-v verbose] [-c rept_cycle] [-b bit_depth]\n"
+	"\t[-B back_history] [-f depth_factor] [-r rec_size] [-k]\n"
+	"\t[-m map_file] [-C] input_file\n"
 	"\n"
-	"\t-h			print this help message and exit\n"
+	"\t-h\t\t\tprint this help message and exit\n"
 	"\n"
-	"\t-v verbose		verbose level (def: 0 ==> none)\n"
-	"\t-c rept_cycle	report each rept_cycle records (def: at end)\n"
-	"\t-b bit_depth		tally depth for each record bit (def: 8)\n"
-	"\t-B back_history	xor diffs this many records back (def: 32)\n"
-	"\t-f depth_factor	ave slot tally needed for entropy (def: 4) \n"
-	"\t-r rec_size		read rec_size octet records (def: line mode)\n"
-	"\t-k			do not discard newlines (not with -r)\n"
-	"\t-m map_file		octet mask, octet to bit map, bit mask\n"
-	"\t-C			keep after 1st = before 1st ; (not with -r)\n"
+	"\t-v verbose\t\tverbose level (def: 0 ==> none)\n"
+	"\t-c rept_cycle\t\treport each rept_cycle records (def: at end)\n"
+	"\t-b bit_depth\t\ttally depth for each record bit (def: 8)\n"
+	"\t-B back_history\t\txor diffs this many records back (def: 32)\n"
+	"\t-f depth_factor\t\tave slot tally needed for entropy (def: 4) \n"
+	"\t-r rec_size\t\tread rec_size octet records (def: line mode)\n"
+	"\t-k\t\t\tdo not discard newlines (not with -r)\n"
+	"\t-m map_file\t\toctet mask, octet to bit map, bit mask\n"
+	"\t-C\t\t\tkeep after 1st = before 1st ; (not with -r)\n"
 	"\n"
-	"\tinput_file\tfile to read records from (- ==> stdin)\n"
+	"\tinput_file\t\tfile to read records from (- ==> stdin)\n"
 	"\n"
 	"\tThe map_file syntax:\n"
 	"\n"
@@ -219,16 +220,16 @@ static char *usage =
 	"\n"
 	"\t# The charmask line contains only x's and c's after the =\n"
 	"\t# The charmask is optional, default is process all chars\n"
-	"\tcharmask=[xc]+	# comments at the end of a line are ignored\n"
+	"\tcharmask=[xc]+\t\t# comments at the end of a line are ignored\n"
 	"\n"
 	"\t# Map the octet value (given as 2 hex chars) into 0 or more bits.\n"
 	"\t# If no octet value are given, the default 8 bit binary value of\n"
-	"\t#	each of the 256 octet values are used to convert octets\n"
-	"\t#	to binary strings.\n"
+	"\t#\teach of the 256 octet values are used to convert octets\n"
+	"\t#\tto binary strings.\n"
 	"\t# If any octet value is given, then only those octet values give\n"
-	"\t#	in this file are processed.\n"
+	"\t#\tin this file are processed.\n"
 	"\t# So:\n"
-	"\t#	61=01001\n"
+	"\t#\t61=01001\n"
 	"\t# maps the octet 0x61 ('a') into 5 bits: 0, 1, 0, 0, and 1.\n"
 	"\t[0-9a-fA-F][0-9a-fA-F]=[01]*\n"
 	"\n"
@@ -620,6 +621,7 @@ main(int argc, char *argv[])
     } else {
 	rept_entropy(bits, bits_len);
     }
+    printf("\nEntropy report:\n");
     if (overall.high_bit_cnt > 0) {
 	printf("record count: %llu with %d bits: "
 	       "high entropy: %f\n",
@@ -637,7 +639,7 @@ main(int argc, char *argv[])
 	printf("Error: not enough data to calculate low entropy estimate\n");
     }
     if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
-	printf("\nhigh, median and low entropy: %f %f %f\n",
+	printf("high, median and low entropy: %f %f %f\n\n",
 	       overall.high_entropy,
 	       overall.med_entropy,
 	       overall.low_entropy);
