@@ -2,8 +2,8 @@
 #
 # entropic - measure the amount of entropy found within input records
 #
-# @(#) $Revision: 1.1 $
-# @(#) $Id: Makefile,v 1.1 2003/01/28 09:09:58 chongo Exp chongo $
+# @(#) $Revision: 1.2 $
+# @(#) $Id: Makefile,v 1.2 2003/01/31 18:01:45 chongo Exp $
 # @(#) $Source: /usr/local/src/cmd/entropic/RCS/Makefile,v $
 #
 # Please do not copyright this Makefile.  This Makefile is in the public domain.
@@ -27,16 +27,22 @@ BINMODE=0555
 DESTBIN=/usr/local/bin
 INSTALL=install
 
-all: entropic
+all: entropic ent_binary
 
 entropic: entropic.c
 	${CC} ${CFLAGS} entropic.c -o $@ -lm
 
+ent_binary: ent_binary.c
+	${CC} ${CFLAGS} ent_binary.c -o $@ -lm
+
 install: all
 	${INSTALL} -m ${BINMODE} entropic ${DESTBIN}
+	${INSTALL} -m ${BINMODE} ent_binary ${DESTBIN}
 
 clean:
 	rm -f entropic.o
+	rm -f ent_binary.o
 
 clobber: clean
 	-rm -f entropic
+	-rm -f ent_binary
