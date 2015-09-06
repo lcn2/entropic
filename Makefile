@@ -27,22 +27,16 @@ BINMODE=0555
 DESTBIN=/usr/local/bin
 INSTALL=install
 
-all: entropic ent_binary
+all: entropic
 
 entropic: entropic.c
 	${CC} ${CFLAGS} entropic.c -o $@ -lm
 
-ent_binary: ent_binary.c
-	${CC} ${CFLAGS} ent_binary.c -o $@ -lm
-
 install: all
 	${INSTALL} -m ${BINMODE} entropic ${DESTBIN}
-	${INSTALL} -m ${BINMODE} ent_binary ${DESTBIN}
 
 clean:
 	rm -f entropic.o
-	rm -f ent_binary.o
 
 clobber: clean
 	-rm -f entropic
-	-rm -f ent_binary
