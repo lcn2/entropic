@@ -2,9 +2,9 @@
 #
 # entropic - measure the amount of entropy found within input records
 #
-# @(#) $Revision: 1.2 $
-# @(#) $Id: Makefile,v 1.2 2003/01/31 18:01:45 chongo Exp $
-# @(#) $Source: /usr/local/src/cmd/entropic/RCS/Makefile,v $
+# @(#) $Revision: 1.4 $
+# @(#) $Id: Makefile,v 1.4 2015/09/06 03:04:18 root Exp $
+# @(#) $Source: /usr/local/src/bin/entropic/RCS/Makefile,v $
 #
 # Please do not copyright this Makefile.  This Makefile is in the public domain.
 #

@@ -2,9 +2,9 @@
 #
 # ASCII and Meta+ASCII characters map into the same 7 bit values.
 
-# @(#) $Revision$
-# @(#) $Id$
-# @(#) $Source$
+# @(#) $Revision: 1.1 $
+# @(#) $Id: 7bit.map,v 1.1 2003/01/30 11:30:39 chongo Exp $
+# @(#) $Source: /usr/local/src/bin/entropic/RCS/7bit.map,v $
 #
 # Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
 #

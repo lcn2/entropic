@@ -4,9 +4,9 @@
  * NOTE: This is taken from the entropic code v1.17 where the b256.map
  * 	 file has been hard coded.
  *
- * @(#) $Revision: 1.17 $
- * @(#) $Id: entropic.c,v 1.17 2003/07/01 17:43:36 chongo Exp $
- * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
+ * @(#) $Revision: 1.1 $
+ * @(#) $Id: ent_binary.c,v 1.1 2006/03/15 02:27:55 chongo Exp $
+ * @(#) $Source: /usr/local/src/bin/entropic/RCS/ent_binary.c,v $
  *
  * Copyright (c) 2003-2006 by Landon Curt Noll.  All Rights Reserved.
  *

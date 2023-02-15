@@ -2,9 +2,9 @@
 #
 # [0-1] ==> [0..1]
 
-# @(#) $Revision: 1.1 $
-# @(#) $Id: b2.map,v 1.1 2003/07/10 21:42:24 chongo Exp $
-# @(#) $Source: /usr/local/src/cmd/entropic/RCS/b2.map,v $
+# @(#) $Revision: 1.2 $
+# @(#) $Id: b2.map,v 1.2 2015/09/06 03:05:27 root Exp $
+# @(#) $Source: /usr/local/src/bin/entropic/RCS/b2.map,v $
 #
 # Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
 #

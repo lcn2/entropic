@@ -2,9 +2,9 @@
 #
 # [0-7] ==> [0..8]
 
-# @(#) $Revision$
-# @(#) $Id$
-# @(#) $Source$
+# @(#) $Revision: 1.1 $
+# @(#) $Id: oct.map,v 1.1 2003/01/30 11:30:39 chongo Exp $
+# @(#) $Source: /usr/local/src/bin/entropic/RCS/oct.map,v $
 #
 # Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
 #

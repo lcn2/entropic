@@ -1,9 +1,9 @@
 /*
  * entropic - measure the amount of entropy found within input records
  *
- * @(#) $Revision: 1.16 $
- * @(#) $Id: entropic.c,v 1.16 2003/07/01 17:22:49 chongo Exp chongo $
- * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
+ * @(#) $Revision: 1.17 $
+ * @(#) $Id: entropic.c,v 1.17 2003/07/01 17:43:36 chongo Exp $
+ * @(#) $Source: /usr/local/src/bin/entropic/RCS/entropic.c,v $
  *
  * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
  *
