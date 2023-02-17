@@ -3,9 +3,9 @@
  *
  * @(#) $Revision: 1.17 $
  * @(#) $Id: entropic.c,v 1.17 2003/07/01 17:43:36 chongo Exp $
- * @(#) $Source: /usr/local/src/bin/entropic/RCS/entropic.c,v $
+ * @(#) $Source: /usr/local/src/cmd/entropic/RCS/entropic.c,v $
  *
- * Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+ * Copyright (c) 2003,2021 by Landon Curt Noll.  All Rights Reserved.
  *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose and without fee is hereby granted,
@@ -740,7 +740,7 @@ parse_args(int argc, char **argv)
 	exit(9);
     }
     if (bit_depth > MAX_DEPTH) {
-	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
+	fprintf(stderr, "%s: -b bit_depth must <= %ld\n", program, MAX_DEPTH);
 	exit(10);
     }
     dbg(1, "main: bit_depth: %d", bit_depth);
@@ -753,7 +753,7 @@ parse_args(int argc, char **argv)
 	exit(11);
     }
     if (bit_depth > MAX_BACK_HISTORY) {
-	fprintf(stderr, "%s: -B back_history must <= %d\n",
+	fprintf(stderr, "%s: -B back_history must <= %ld\n",
 		program, MAX_BACK_HISTORY);
 	exit(12);
     }
@@ -1254,7 +1254,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
     /*
      * line based read
      */
-    } else if (fgets(buf, BUFSIZ, input) == NULL) {
+    } else if (fgets((char *)buf, BUFSIZ, input) == NULL) {
 	/* report fgets error */
 	if (ferror(input)) {
 	    dbg(1, "fgets error: %s", strerror(errno));
@@ -1265,7 +1265,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
     } else {
 	/* obtain line stats */
 	buf[BUFSIZ] = '\0';
-	rec_len = strlen(buf);
+	rec_len = strlen((char *)buf);
 	if (rec_len <= 0) {
 	    dbg(1, "no EOF or error, but fgets returned %d octets", rec_len);
 	    rec_len = -1;	/* force error */
@@ -1425,7 +1425,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	/*
 	 * look for the cookie value boundaries
 	 */
-	equal = strchr(inbuf, '=');
+	equal = strchr((char *)inbuf, '=');
 	if (equal == NULL) {
 	    dbg(5, "trim_record: line has no =, discarding line");
 	    return 0;
@@ -1533,7 +1533,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	/*
 	 * load 0x01's for every '1' and 0x00's otherwise
 	 */
-	for (q = octet_map[inbuf[i]]; *q != '\0'; ++q) {
+	for (q = (u_int8_t *)octet_map[inbuf[i]]; *q != '\0'; ++q) {
 	    *r++ = ((*q == '1') ? 0x01 : 0x00);
 	}
     }
