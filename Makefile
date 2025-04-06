@@ -42,8 +42,8 @@ INSTALL= install
 RM= rm
 SHELL= bash
 
-CFLAGS= -O3 -g3 --pedantic -Wall -Werror
-#CFLAGS= -O3 -g3 --pedantic -Wall
+#CFLAGS= -O3 -g3 --pedantic -Wall -Werror -lm
+CFLAGS= -O3 -g3 --pedantic -Wall -lm
 
 
 ######################

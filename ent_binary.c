@@ -486,19 +486,19 @@ main(int argc, char *argv[])
 	if (rept_cycle > 0 && ((recnum+1) % rept_cycle) == 0) {
 	    rept_entropy(bits, bits_len);
 	    if (overall.high_bit_cnt > 0) {
-		printf("after record %llu for %d bits: "
+		printf("after record %lu for %d bits: "
 		       "high entropy: %f\n",
 		       (u_int64_t)recnum+1,
 		       overall.high_bit_cnt, overall.high_entropy);
 	    }
 	    if (overall.low_bit_cnt > 0) {
-		printf("after record %llu for %d bits: "
+		printf("after record %lu for %d bits: "
 		       "low entropy: %f\n",
 		       (u_int64_t)recnum+1,
 		       overall.low_bit_cnt, overall.low_entropy);
 	    }
 	    if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
-		printf("after record %llu for %d bits: "
+		printf("after record %lu for %d bits: "
 		       "median entropy: %f\n",
 		       (u_int64_t)recnum+1,
 		       overall.low_bit_cnt, overall.med_entropy);
@@ -521,7 +521,7 @@ main(int argc, char *argv[])
     }
     printf("\nEntropy report:\n");
     if (overall.high_bit_cnt > 0) {
-	printf("record count: %llu with %d bits: "
+	printf("record count: %lu with %d bits: "
 	       "high entropy: %f\n",
 	       (u_int64_t)recnum+1,
 	       overall.high_bit_cnt, overall.high_entropy);
@@ -529,7 +529,7 @@ main(int argc, char *argv[])
 	printf("Error: not enough data to calculate high entropy estimate\n");
     }
     if (overall.low_bit_cnt > 0) {
-	printf("record count: %llu with %d bits: "
+	printf("record count: %lu with %d bits: "
 	       "low entropy: %f\n",
 	       (u_int64_t)recnum+1,
 	       overall.low_bit_cnt, overall.low_entropy);
@@ -1076,7 +1076,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     if (*outbuf_len < outbuf_need) {
 
 	/* grow output buffer */
-	*outbuf = (u_int8_t *)realloc(outbuf, outbuf_need+1);
+	*outbuf = (u_int8_t *)realloc(*outbuf, outbuf_need+1);
 	if (outbuf == NULL) {
 	    fprintf(stderr, "%s: trim_record: failed to realloc outbuf from "
 			    "%d octets to %d octets\n",
