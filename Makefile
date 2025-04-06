@@ -42,8 +42,8 @@ INSTALL= install
 RM= rm
 SHELL= bash
 
-#CFLAGS= -O3 -g3 --pedantic -Wall -Werror -lm
-CFLAGS= -O3 -g3 --pedantic -Wall -lm
+CFLAGS= -O3 -g3 --pedantic -Wall -Werror
+#CFLAGS= -O3 -g3 --pedantic -Wall
 
 
 ######################
@@ -76,13 +76,13 @@ entropic.o: entropic.c
 	${CC} ${CFLAGS} entropic.c -c
 
 entropic: entropic.o
-	${CC} ${CFLAGS} entropic.o -o $@
+	${CC} ${CFLAGS} entropic.o -lm -o $@
 
 ent_binary.o: ent_binary.c
 	${CC} ${CFLAGS} ent_binary.c -c
 
 ent_binary: ent_binary.o
-	${CC} ${CFLAGS} ent_binary.o -o $@
+	${CC} ${CFLAGS} ent_binary.o -lm -o $@
 
 
 #################################################

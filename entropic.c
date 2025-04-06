@@ -51,7 +51,7 @@
  * MAX_HISTORY_BITS
  *		We must have this many records before we have a full
  *		history's worth of values for a given bit position in a record.
- *		Bit histories are kept in a u_int64_t.
+ *		Bit histories are kept in an unsigned long.
  *
  * MAX_BACK_HISTORY
  *		When we form xors of current values and history values,
@@ -89,7 +89,7 @@
  */
 #define OCTET_BITS 8
 #define DEF_DEPTH 8
-#define MAX_HISTORY_BITS (sizeof(u_int64_t)*OCTET_BITS)
+#define MAX_HISTORY_BITS (sizeof(unsigned long)*OCTET_BITS)
 #define MAX_BACK_HISTORY (MAX_HISTORY_BITS/2)
 #define DEF_HISTORY MAX_BACK_HISTORY
 #define MAX_DEPTH (MAX_BACK_HISTORY-1)
@@ -102,19 +102,8 @@
 
 /*
  * tally_t - tally counter type
- *
- * If you want to process more than 512 Megabytes == 2^32 bits of
- * input, you must define HUGE_INPUT so that counters can be 64
- * instead of 32 bits.  When HUGE_INPUT is defined, a tally_t is large
- * enough to hold a tally count of 18446744073709551615 values.
- * Without HUGE_INPUT, a tally_t can only hold a count as
- * large as 4294967295.
  */
-#if defined(HUGE_INPUT)
-typedef u_int32_t tally_t;
-#else
-typedef u_int64_t tally_t;
-#endif
+typedef unsigned long tally_t;
 
 
 /*
@@ -170,12 +159,12 @@ typedef u_int64_t tally_t;
  *       On struct total_ent, the low_entropy is invalid if low_bit_cnt <= 0.
  */
 struct bitslice {
-    int bitnum;		/* bit position in record, 0 ==> low order bit */
-    u_int64_t history;	/* history of bit positions, bit 0 ==> most recent */
-    u_int64_t ops;	/* total operations on bit, including ignored ones */
-    u_int64_t count;	/* number of bits processed for this position */
-    int depth_lim;	/* bit_depth used in this slice */
-    int back_lim;	/* back_history used in this slice */
+    int bitnum;			/* bit position in record, 0 ==> low order bit */
+    unsigned long history;	/* history of bit positions, bit 0 ==> most recent */
+    unsigned long ops;		/* total operations on bit, including ignored ones */
+    unsigned long count;	/* number of bits processed for this position */
+    int depth_lim;		/* bit_depth used in this slice */
+    int back_lim;		/* back_history used in this slice */
     double max_ent[MAX_BACK_HISTORY+1];	/* max entropy estimates of hist[i] */
     double min_ent[MAX_BACK_HISTORY+1];	/* min entropy estimates of hist[i] */
     double entropy_high;		/* overall high estimate of entropy */
@@ -536,7 +525,7 @@ main(int argc, char *argv[])
 	/*
 	 * read the next record
 	 */
-	dbg(5, "main: reading record: %llu", (u_int64_t)recnum);
+	dbg(5, "main: reading record: %llu", (unsigned long)recnum);
 	raw_len = read_record(input, raw_buf, rec_size, line_mode);
 	if (raw_len <= 0) {
 	    break;
@@ -608,19 +597,19 @@ main(int argc, char *argv[])
 	    if (overall.high_bit_cnt > 0) {
 		printf("after record %lu for %d bits: "
 		       "high entropy: %f\n",
-		       (u_int64_t)recnum+1,
+		       (unsigned long)recnum+1,
 		       overall.high_bit_cnt, overall.high_entropy);
 	    }
 	    if (overall.low_bit_cnt > 0) {
 		printf("after record %lu for %d bits: "
 		       "low entropy: %f\n",
-		       (u_int64_t)recnum+1,
+		       (unsigned long)recnum+1,
 		       overall.low_bit_cnt, overall.low_entropy);
 	    }
 	    if (overall.high_bit_cnt > 0 && overall.low_bit_cnt > 0) {
 		printf("after record %lu for %d bits: "
 		       "median entropy: %f\n",
-		       (u_int64_t)recnum+1,
+		       (unsigned long)recnum+1,
 		       overall.low_bit_cnt, overall.med_entropy);
 	    }
 	    if (overall.high_bit_cnt > 0) {
@@ -643,7 +632,7 @@ main(int argc, char *argv[])
     if (overall.high_bit_cnt > 0) {
 	printf("record count: %lu with %d bits: "
 	       "high entropy: %f\n",
-	       (u_int64_t)recnum+1,
+	       (unsigned long)recnum+1,
 	       overall.high_bit_cnt, overall.high_entropy);
     } else {
 	printf("Error: not enough data to calculate high entropy estimate\n");
@@ -651,7 +640,7 @@ main(int argc, char *argv[])
     if (overall.low_bit_cnt > 0) {
 	printf("record count: %lu with %d bits: "
 	       "low entropy: %f\n",
-	       (u_int64_t)recnum+1,
+	       (unsigned long)recnum+1,
 	       overall.low_bit_cnt, overall.low_entropy);
     } else {
 	printf("Error: not enough data to calculate low entropy estimate\n");
@@ -1298,7 +1287,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	    rec_len = -1;	/* force error */
 	} else {
 	    dbg(6, "fread %d octets for record %lld",
-		    buf_size, (u_int64_t)recnum);
+		    buf_size, (unsigned long)recnum);
 	}
 
     /*
@@ -1321,7 +1310,7 @@ read_record(FILE *input, u_int8_t *buf, int buf_size, int read_line)
 	    rec_len = -1;	/* force error */
 	} else {
 	    dbg(6, "fgets read %d octet line for record %lld",
-		rec_len, (u_int64_t)recnum);
+		rec_len, (unsigned long)recnum);
 	}
     }
 
@@ -1669,7 +1658,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 static void
 rept_entropy(struct bitslice **slice, int bit_buf_used)
 {
-    u_int64_t count;		/* number of bit ops for a bitslice */
+    unsigned long count;	/* number of bit ops for a bitslice */
     double inv_count;		/* 1.0/count as a double */
     int depth_lim;		/* how deep we can calculate entropy */
     int back_lim;		/* how far back the slice uses history */
