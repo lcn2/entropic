@@ -3,11 +3,7 @@
 # [A-Z0-5] ==> [0..31]
 # [a-z0-5] ==> [0..31]
 
-# @(#) $Revision: 1.1 $
-# @(#) $Id: b32.map,v 1.1 2003/01/30 11:30:39 chongo Exp $
-# @(#) $Source: /usr/local/src/bin/entropic/RCS/b32.map,v $
-#
-# Copyright (c) 2003 by Landon Curt Noll.  All Rights Reserved.
+# Copyright (c) 2003,2006,2015,2021,2023,2025 by Landon Curt Noll.  All Rights Reserved.
 #
 # Permission to use, copy, modify, and distribute this software and
 # its documentation for any purpose and without fee is hereby granted,
@@ -27,9 +23,12 @@
 # OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 # PERFORMANCE OF THIS SOFTWARE.
 #
-# chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+# chongo (Landon Curt Noll) /\oo/\
 #
-# Share and enjoy! :-)
+# http://www.isthe.com/chongo/index.html
+# https://github.com/lcn2
+#
+# Share and enjoy!  :-)
 
 41=00000	# 'A'
 42=00001	# 'B'

@@ -2,13 +2,9 @@
  * ent_binary - measure the amount of entropy found within input records
  *
  * NOTE: This is taken from the entropic code v1.17 where the b256.map
- * 	 file has been hard coded.
+ *	 file has been hard coded.
  *
- * @(#) $Revision: 1.1 $
- * @(#) $Id: ent_binary.c,v 1.1 2006/03/15 02:27:55 chongo Exp $
- * @(#) $Source: /usr/local/src/bin/entropic/RCS/ent_binary.c,v $
- *
- * Copyright (c) 2003-2006 by Landon Curt Noll.  All Rights Reserved.
+ * Copyright (c) 2003,2006,2015,2021,2023,2025 by Landon Curt Noll.  All Rights Reserved.
  *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose and without fee is hereby granted,
@@ -28,9 +24,12 @@
  * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  *
- * chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\oo/\
+ * chongo (Landon Curt Noll) /\oo/\
  *
- * Share and enjoy! :-)
+ * http://www.isthe.com/chongo/index.html
+ * https://github.com/lcn2
+ *
+ * Share and Enjoy!     :-)
  */
 
 
@@ -42,6 +41,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <sys/errno.h>
 
 
 /*
@@ -52,43 +52,43 @@
  * DEF_DEPTH	default tally depth (-b) for each record bit
  *
  * MAX_HISTORY_BITS
- * 		We must have this many records before we have a full
- * 		history's worth of values for a given bit position in a record.
- * 		Bit histories are kept in a u_int64_t.
+ *		We must have this many records before we have a full
+ *		history's worth of values for a given bit position in a record.
+ *		Bit histories are kept in a u_int64_t.
  *
  * MAX_BACK_HISTORY
- * 		When we form xors of current values and history values,
- * 		we will go back in history up to this many bits.
+ *		When we form xors of current values and history values,
+ *		we will go back in history up to this many bits.
  *
  * DEF_HISTORY	Default BACK_HISTORY value.
  *
  * MAX_DEPTH	Deeper tally depths require more memory.  An increase in 1
- * 		for the depth requires twice as much memory.  A deeper tally
- * 		has a shorter history from which bit differences can be
- * 		examined.
+ *		for the depth requires twice as much memory.  A deeper tally
+ *		has a shorter history from which bit differences can be
+ *		examined.
  *
- * 		For each bit depth, we need MAX_BACK_HISTORY more bits in the
- * 		history.  So MAX_DEPTH+MAX_BACK_HISTORY is required to
- * 		be <= MAX_HISTORY_BITS.  We go one less so that index offsets
- * 		fit within signed 32 bits.  Most systems will not be able to
- * 		allocate this much memory, but we have to draw a limit
- * 		somewhere.
+ *		For each bit depth, we need MAX_BACK_HISTORY more bits in the
+ *		history.  So MAX_DEPTH+MAX_BACK_HISTORY is required to
+ *		be <= MAX_HISTORY_BITS.  We go one less so that index offsets
+ *		fit within signed 32 bits.  Most systems will not be able to
+ *		allocate this much memory, but we have to draw a limit
+ *		somewhere.
  *
  * DEF_DEPTH_FACTOR
- * 		When we calculate entropy at a depth of x, we use the
- * 		tally_t of values from [0 .. (1<<x)-1].
+ *		When we calculate entropy at a depth of x, we use the
+ *		tally_t of values from [0 .. (1<<x)-1].
  *
- * 		However if we have only counted a few bits for a given
- * 		slice, this tally_t set will not be very populated.
- * 		The required number of cycles to use a depth of x
- * 		in calculating entropy is (1<<x) * depth_factor.
- * 		This value is the default depth_factor.
+ *		However if we have only counted a few bits for a given
+ *		slice, this tally_t set will not be very populated.
+ *		The required number of cycles to use a depth of x
+ *		in calculating entropy is (1<<x) * depth_factor.
+ *		This value is the default depth_factor.
  *
  * INV_LN_2	1.0 / Log base e of 2.
  *
  * INVALID_MAX_ENTROPY
  * INVALID_MIN_ENTROPY
- * 		Impossible entropy values per bit.
+ *		Impossible entropy values per bit.
  */
 #define OCTET_BITS 8
 #define DEF_DEPTH 8
@@ -124,50 +124,50 @@ typedef u_int64_t tally_t;
  * bitslice - tables and tally arrays for a given bit position in the record
  *
  * hist[i]
- * 	The tally table for the xor of the current bit history with
- * 	the bit history 'i' records back.
+ *	The tally table for the xor of the current bit history with
+ *	the bit history 'i' records back.
  *
- * 	The layout of a given tally array is defined in alloc_bittally()'s
- * 	comments.  For our example, simply note that hist[i][8] thru
- * 	hist[i][15] hold the 8 tally values for all possible 3-bit
- * 	combinations.  So hist[i][8] is a tally of all '000' 3-bit values.
- * 	And hist[i][9] is a tally of all '001' 3-bit values.
- * 	And hist[i][10] is a tally of all '010' 3-bit values.  ...
+ *	The layout of a given tally array is defined in alloc_bittally()'s
+ *	comments.  For our example, simply note that hist[i][8] thru
+ *	hist[i][15] hold the 8 tally values for all possible 3-bit
+ *	combinations.  So hist[i][8] is a tally of all '000' 3-bit values.
+ *	And hist[i][9] is a tally of all '001' 3-bit values.
+ *	And hist[i][10] is a tally of all '010' 3-bit values.  ...
  *
- * 	Therefore hist[5][10] holds a tally of all '010' 3-bit values
- * 	that are computed by the xor of the current bit history
- * 	and the bit history 5 records back.  If b0 is the current
- * 	bit value, b1 is the previous bit value, b2 as the bit value, ...
+ *	Therefore hist[5][10] holds a tally of all '010' 3-bit values
+ *	that are computed by the xor of the current bit history
+ *	and the bit history 5 records back.  If b0 is the current
+ *	bit value, b1 is the previous bit value, b2 as the bit value, ...
  *
- * 	Using the notation that b0 is the current value, b1 previous,
- * 	b2 the bit value before that, we have:
+ *	Using the notation that b0 is the current value, b1 previous,
+ *	b2 the bit value before that, we have:
  *
- * 	    hist[5][10] = count when xor( b2b1b0 , b7b6b5 ) was '010'
- * 	    hist[5][11] = count when xor( b2b1b0 , b7b6b5 ) was '011'
- * 	    hist[5][12] = count when xor( b2b1b0 , b7b6b5 ) was '100'
+ *	    hist[5][10] = count when xor( b2b1b0 , b7b6b5 ) was '010'
+ *	    hist[5][11] = count when xor( b2b1b0 , b7b6b5 ) was '011'
+ *	    hist[5][12] = count when xor( b2b1b0 , b7b6b5 ) was '100'
  *
- * 	    hist[6][12] = count when xor( b2b1b0 , b8b7b6 ) was '100'
- * 	    hist[7][12] = count when xor( b2b1b0 , b9b8b7 ) was '100'
+ *	    hist[6][12] = count when xor( b2b1b0 , b8b7b6 ) was '100'
+ *	    hist[7][12] = count when xor( b2b1b0 , b9b8b7 ) was '100'
  *
- * 	    hist[5][4] = count when xor( b1b0 , b6b5 ) was '00'
- * 	    hist[5][5] = count when xor( b1b0 , b6b5 ) was '01'
- * 	    hist[5][6] = count when xor( b1b0 , b6b5 ) was '10'
- * 	    hist[5][7] = count when xor( b1b0 , b6b5 ) was '11'
+ *	    hist[5][4] = count when xor( b1b0 , b6b5 ) was '00'
+ *	    hist[5][5] = count when xor( b1b0 , b6b5 ) was '01'
+ *	    hist[5][6] = count when xor( b1b0 , b6b5 ) was '10'
+ *	    hist[5][7] = count when xor( b1b0 , b6b5 ) was '11'
  *
- * 	    hist[4][4] = count when xor( b1b0 , b5b4 ) was '00'
- * 	    hist[4][5] = count when xor( b1b0 , b5b4 ) was '01'
- * 	    hist[4][6] = count when xor( b1b0 , b5b4 ) was '10'
- * 	    hist[4][7] = count when xor( b1b0 , b5b4 ) was '11'
+ *	    hist[4][4] = count when xor( b1b0 , b5b4 ) was '00'
+ *	    hist[4][5] = count when xor( b1b0 , b5b4 ) was '01'
+ *	    hist[4][6] = count when xor( b1b0 , b5b4 ) was '10'
+ *	    hist[4][7] = count when xor( b1b0 , b5b4 ) was '11'
  *
  *      assuming that the -b bit_depth was deep enough and hist[i] != NULL.
  *
- * 	As a special case, hist[0] points to the tally table
- * 	of the current values only.  No xor is performed, thus:
+ *	As a special case, hist[0] points to the tally table
+ *	of the current values only.  No xor is performed, thus:
  *
- * 	    hist[0][10] = count when b2b1b0 was '010'
- * 	    hist[0][11] = count when b2b1b0 was '100'
- * 	    hist[0][4]  = count when b1b0 was '00'
- * 	    hist[0][7]  = count when b1b0 was '11'
+ *	    hist[0][10] = count when b2b1b0 was '010'
+ *	    hist[0][11] = count when b2b1b0 was '100'
+ *	    hist[0][4]  = count when b1b0 was '00'
+ *	    hist[0][7]  = count when b1b0 was '11'
  *
  * NOTE: On struct total_ent, the high_entropy is invalid if high_bit_cnt <= 0.
  *       On struct total_ent, the low_entropy is invalid if low_bit_cnt <= 0.
@@ -195,16 +195,23 @@ static struct total_ent {
 
 
 /*
- * usage
+ * official version
  */
-static char *usage =
-	"[-h] [-v verbose] [-c rept_cycle] [-b bit_depth]\n"
+#define VERSION "1.17.1 2025-05-05"          /* format: major.minor YYYY-MM-DD */
+
+
+/*
+ * usage message
+ */
+static const char * const usage =
+	"usage: %s [-h] [-v verbose] [-V] [-c rept_cycle] [-b bit_depth]\n"
 	"\t[-B back_history] [-f depth_factor] [-r rec_size]\n"
 	"\tinput_file\n"
 	"\n"
 	"\t-h\t\t\tprint this help message and exit\n"
-	"\n"
 	"\t-v verbose\t\tverbose level (def: 0 ==> none)\n"
+	"\t-V\t\t\tprint version string and exit\n"
+	"\n"
 	"\t-c rept_cycle\t\treport each rept_cycle records (def: at end)\n"
 	"\t-b bit_depth\t\ttally depth for each record bit (def: 8)\n"
 	"\t-B back_history\t\txor diffs this many records back (def: 32)\n"
@@ -213,39 +220,21 @@ static char *usage =
 	"\n"
 	"\tinput_file\t\tfile to read records from (- ==> stdin)\n"
 	"\n"
-"/*\n"
-" * Copyright (c) 2003-2006 by Landon Curt Noll.  All Rights Reserved.\n"
-" *\n"
-" * Permission to use, copy, modify, and distribute this software and\n"
-" * its documentation for any purpose and without fee is hereby granted,\n"
-" * provided that the above copyright, this permission notice and text\n"
-" * this comment, and the disclaimer below appear in all of the following:\n"
-" *\n"
-" *       supporting documentation\n"
-" *       source copies\n"
-" *       source works derived from this source\n"
-" *       binaries derived from this source or from derived source\n"
-" *\n"
-" * LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,\n"
-" * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO\n"
-" * EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR\n"
-" * CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF\n"
-" * USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR\n"
-" * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR\n"
-" * PERFORMANCE OF THIS SOFTWARE.\n"
-" *\n"
-" * chongo (Landon Curt Noll, http://www.isthe.com/chongo/index.html) /\\oo/\\\n"
-" *\n"
-" * Share and enjoy! :-)\n"
-" */\n";
-static char *program;		/* our name */
+	"%s version: %s\n";
+
+
+/*
+ * static declarations
+ */
+static char *program = NULL;    /* our name */
+static char *prog = NULL;       /* basename of program */
+static const char * const version = VERSION;
 static int v_flag = 0;		/* verbosity level */
 static int rept_cycle = 0;	/* >= 0 ==> rept entropy every so many recs */
 static int bit_depth = DEF_DEPTH;  /* tally bit depth for each bit in record */
 static int back_history = DEF_HISTORY;	/* xor diff back this many records */
 static int depth_factor = DEF_DEPTH_FACTOR;	/* ave slot tally needed */
 static int rec_size = BUFSIZ;	/* record size */
-static char *map_file = NULL;	/* x ==> remove, v ==> keep, else remove */
 static char *filename;		/* name of input file, or - ==> stdin */
 
 
@@ -256,12 +245,12 @@ static char *filename;		/* name of input file, or - ==> stdin */
  *
  * octet_map[i] (from -m map_file)
  *
- * 	A string of ASCII "0"'s and "1"'s representing the bit pattern
- * 	that a the octet 'i' should be converted into during the
- * 	processing of a record.  An empty string means that the
- * 	given octet pattern is skipped.
+ *	A string of ASCII "0"'s and "1"'s representing the bit pattern
+ *	that a the octet 'i' should be converted into during the
+ *	processing of a record.  An empty string means that the
+ *	given octet pattern is skipped.
  *
- * 	The default octet_map is the 8 bit value of the octet.
+ *	The default octet_map is the 8 bit value of the octet.
  */
 static char *octet_map[1 << OCTET_BITS] = {
     "00000000", "00000001", "00000010", "00000011",
@@ -349,41 +338,6 @@ static void dbg(int level, char *fmt, ...);
  * misc globals and static values
  */
 static tally_t recnum = 0;	/* current record number, starting with 0 */
-extern int errno;		/* last system error */
-static int hex_to_value[1 << OCTET_BITS] = {
-    /* 00 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 08 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 10 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 18 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 20 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 28 */	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 30 */	0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7,
-    /* 38 */    0x8, 0x9, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 40 */    0x0, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0x0,
-    /* 48 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 50 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 58 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 60 */    0x0, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0x0,
-    /* 68 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 70 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 78 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 80 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 88 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 90 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* 98 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* a0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* a8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* b0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* b8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* c0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* c8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* d0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* d8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* e0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* e8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* f0 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-    /* f8 */    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-};
 
 
 /*
@@ -612,33 +566,67 @@ parse_args(int argc, char **argv)
      *
      * See the usage static string for details on command line options
      */
-    while ((i = getopt(argc, argv, "hv:c:b:B:f:r:")) != -1) {
+    program = argv[0];
+    prog = rindex(program, '/');
+    if (prog == NULL) {
+        prog = program;
+    } else {
+        ++prog;
+    }
+    while ((i = getopt(argc, argv, "hv:Vc:b:B:f:r:")) != -1) {
 	switch (i) {
+
 	case 'h':	/* print usage message and then exit */
-	    fprintf(stderr, "usage: %s %s\n", program, usage);
-	    exit(0);
+	    fprintf(stderr, usage, program, prog, version);
+	    exit(2);
 	    /*NOTREACHED*/
+
 	case 'v':	/* verbose level */
 	    v_flag = strtol(optarg, NULL, 0);
 	    break;
+
+	case 'V':       /* -V - print version string and exit */
+            (void) printf("%s\n", version);
+            exit(2); /* ooo */
+            /*NOTREACHED*/
+
 	case 'c':	/* tally depth */
 	    rept_cycle = strtol(optarg, NULL, 0);
 	    break;
+
 	case 'b':	/* tally depth */
 	    bit_depth = strtol(optarg, NULL, 0);
 	    break;
+
 	case 'B':	/* back history depth */
 	    back_history = strtol(optarg, NULL, 0);
 	    break;
+
 	case 'f':	/* ave slot tally needed for entropy calculation */
 	    depth_factor = strtol(optarg, NULL, 0);
 	    break;
+
 	case 'r':	/* binary record size */
 	    rec_size = strtol(optarg, NULL, 0);
 	    break;
-	default:
-	    fprintf(stderr, "usage: %s %s\n", program, usage);
-	    exit(6);
+
+	case ':':
+            (void) fprintf(stderr, "%s: ERROR: requires an argument -- %c\n", program, optopt);
+	    fprintf(stderr, usage, program, prog, version);
+            exit(3); /* ooo */
+            /*NOTREACHED*/
+
+        case '?':
+            (void) fprintf(stderr, "%s: ERROR: illegal option -- %c\n", program, optopt);
+	    fprintf(stderr, usage, program, prog, version);
+            exit(3); /* ooo */
+            /*NOTREACHED*/
+
+        default:
+            fprintf(stderr, "%s: ERROR: invalid -flag\n", program);
+	    fprintf(stderr, usage, program, prog, version);
+            exit(3); /* ooo */
+            /*NOTREACHED*/
 	}
     }
 
@@ -646,7 +634,7 @@ parse_args(int argc, char **argv)
      * note the input filename
      */
     if (optind >= argc) {
-	fprintf(stderr, "usage: %s %s\n", program, usage);
+	fprintf(stderr, usage, program, prog, version);
 	exit(7);
     }
     filename = argv[optind];
@@ -669,7 +657,7 @@ parse_args(int argc, char **argv)
 	exit(9);
     }
     if (bit_depth > MAX_DEPTH) {
-	fprintf(stderr, "%s: -b bit_depth must <= %d\n", program, MAX_DEPTH);
+	fprintf(stderr, "%s: -b bit_depth must <= %ld\n", program, MAX_DEPTH);
 	exit(10);
     }
     dbg(1, "main: bit_depth: %d", bit_depth);
@@ -682,7 +670,7 @@ parse_args(int argc, char **argv)
 	exit(11);
     }
     if (bit_depth > MAX_BACK_HISTORY) {
-	fprintf(stderr, "%s: -B back_history must <= %d\n",
+	fprintf(stderr, "%s: -B back_history must <= %ld\n",
 		program, MAX_BACK_HISTORY);
 	exit(12);
     }
@@ -715,21 +703,21 @@ parse_args(int argc, char **argv)
  * alloc_bittally - allocate and initialize the tally array for a bit
  *
  * given:
- * 	depth	tally depth, in bits
+ *	depth	tally depth, in bits
  *
  * returns:
- * 	pointer to allocated and initialized tally array
- * 	does not return (exits non-zero) on memory allocation failure
+ *	pointer to allocated and initialized tally array
+ *	does not return (exits non-zero) on memory allocation failure
  *
  * The tally array layout:
  *
- * 	length in values		(1 value)
- * 	unused				(1 value)
- * 	tally for depth of 1 bit	(2 values)
- * 	tally for depth of 2 bits	(4 values)
- * 	tally for depth of 3 bits	(8 values)
- * 	...
- * 	tally for depth of 'depth' bits	(2**depth values)
+ *	length in values		(1 value)
+ *	unused				(1 value)
+ *	tally for depth of 1 bit	(2 values)
+ *	tally for depth of 2 bits	(4 values)
+ *	tally for depth of 3 bits	(8 values)
+ *	...
+ *	tally for depth of 'depth' bits	(2**depth values)
  *
  * The total size of the bitslice array is 2**(depth+1) values.
  *
@@ -783,12 +771,12 @@ alloc_bittally(int depth)
  * alloc_bitslice - allocate and initialize all values given bit position
  *
  * given:
- * 	bitnum		bit number in record for which we are allocating
- * 	depth	tally depth, in bits
+ *	bitnum		bit number in record for which we are allocating
+ *	depth	tally depth, in bits
  *
  * returns:
- * 	pointer to allocated and initialized bitslice
- * 	does not return (exits non-zero) on memory allocation failure
+ *	pointer to allocated and initialized bitslice
+ *	does not return (exits non-zero) on memory allocation failure
  */
 static struct bitslice *
 alloc_bitslice(int bitnum, int depth)
@@ -855,8 +843,8 @@ alloc_bitslice(int bitnum, int depth)
  * record_bit - record and tally a bit value for a given bitslice
  *
  * given:
- * 	slice	bitslice record for a given bit position in our records
- * 	value	next value for the given bit position (0 or 1)
+ *	slice	bitslice record for a given bit position in our records
+ *	value	next value for the given bit position (0 or 1)
  */
 static void
 record_bit(struct bitslice *slice, int value)
@@ -925,12 +913,12 @@ record_bit(struct bitslice *slice, int value)
  * read_record - read the next record from the input file stream
  *
  * given:
- * 	input	    input file stream to read
- * 	buf	    buffer of buf_size octets if raw_read, else BUFSIZ octets
- * 	buf_size    size of raw buffer in octets
+ *	input	    input file stream to read
+ *	buf	    buffer of buf_size octets if raw_read, else BUFSIZ octets
+ *	buf_size    size of raw buffer in octets
  *
  * return:
- * 	number of octets read, or -1 ==> error
+ *	number of octets read, or -1 ==> error
  *
  * NOTE: We will ensure that the octet beyond the end of the buffer is '\0'.
  */
@@ -1000,13 +988,13 @@ read_record(FILE *input, u_int8_t *buf, int buf_size)
  * this function will realloc it to a larger size.
  *
  * given:
- * 	inbuf		the raw record buffer
- * 	inbuf_len	length of inbuf in octets
+ *	inbuf		the raw record buffer
+ *	inbuf_len	length of inbuf in octets
  *	outbuf		pointer to a malloc-ed output bit buffer
- * 	outbuf_len	pointer to the malloc-ed length of outbuf
+ *	outbuf_len	pointer to the malloc-ed length of outbuf
  *
  * returns:
- * 	the amount of outbuf used
+ *	the amount of outbuf used
  *
  * NOTE: The inbuf will be altered according to
  */
@@ -1016,10 +1004,8 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
     int orig_inbuf_len = inbuf_len;	/* original inbuf_len value */
     int outbuf_need;	/* amount of outbuf we will use */
     int i;
-    char *p;
     u_int8_t *q;
     u_int8_t *r;
-    char *s;
 
     /*
      * firewall
@@ -1093,7 +1079,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	*outbuf = (u_int8_t *)realloc(outbuf, outbuf_need+1);
 	if (outbuf == NULL) {
 	    fprintf(stderr, "%s: trim_record: failed to realloc outbuf from "
-		    	    "%d octets to %d octets\n",
+			    "%d octets to %d octets\n",
 		    program, *outbuf_len, outbuf_need);
 	    exit(36);
 	}
@@ -1111,7 +1097,7 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 	/*
 	 * load 0x01's for every '1' and 0x00's otherwise
 	 */
-	for (q = octet_map[inbuf[i]]; *q != '\0'; ++q) {
+	for (q = (u_int8_t *)octet_map[inbuf[i]]; *q != '\0'; ++q) {
 	    *r++ = ((*q == '1') ? 0x01 : 0x00);
 	}
     }
@@ -1147,7 +1133,6 @@ pre_process(u_int8_t *inbuf, int inbuf_len, u_int8_t **outbuf, int *outbuf_len)
 static void
 rept_entropy(struct bitslice **slice, int bit_buf_used)
 {
-    struct bitslice *bit;	/* current bit slice */
     u_int64_t count;		/* number of bit ops for a bitslice */
     double inv_count;		/* 1.0/count as a double */
     int depth_lim;		/* how deep we can calculate entropy */
@@ -1157,7 +1142,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
     int depth_num;		/* bit depth level */
     tally_t *tally;		/* tally array for a given bit & history lvl */
     u_int32_t offset;		/* offset within tally array being used */
-    double p_i;			/* proability of finding an i value */
+    double p_i;			/* probability of finding an i value */
     double entropy;		/* entropy sum being calculated */
     double max_entropy;		/* max entropy found for a given history */
     int max_ent_depth;		/* depth at which max entropy was found */
@@ -1226,8 +1211,8 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		    bit_num, count);
 	    continue;
 	}
-	dbg(8, "rept_entropy: slice[%d]: count: %lld  depth_lim: %d",
-	       bit_num, count, depth_lim);
+	dbg(8, "rept_entropy: slice[%d]: count: %lld  depth_lim: %d  back_lim: %d",
+	       bit_num, count, depth_lim, back_lim);
 
 	/*
 	 * setup to calculate high and low entropy estimates for bit
@@ -1240,7 +1225,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 	low_ent_hist = -1;
 
 	/*
-	 * calculcate entropy for the back history of this bit
+	 * calculate entropy for the back history of this bit
 	 */
 	for (hist_num=0; hist_num <= back_history; ++hist_num) {
 
@@ -1259,7 +1244,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 	    min_ent_depth = -1;
 
 	    /*
-	     * calculate the entropy to approproate depths
+	     * calculate the entropy to appropriate depths
 	     */
 	    for (offset=2, depth_num=1;
 		 depth_num <= depth_lim;
@@ -1276,7 +1261,7 @@ rept_entropy(struct bitslice **slice, int bit_buf_used)
 		    /* ignore of no count */
 		    if (tally[offset+i] > 0) {
 
-			/* proability of find this value at this depth */
+			/* probability of find this value at this depth */
 			p_i = (double)tally[offset+i] * inv_count;
 
 			/* add to entropy sum */
