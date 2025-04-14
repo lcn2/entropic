@@ -56,8 +56,9 @@ CFLAGS= -O3 -g3 --pedantic -Wall -Werror
 V=@:
 #V=@
 
-DESTDIR= /usr/local/bin
-SHAREDIR= /usr/local/share/entropic
+PREFIX= /usr/local
+DESTDIR= ${PREFIX}/bin
+SHAREDIR= ${PREFIX}/share/entropic
 
 MAPS= 7bit.map ascii.map b2.map b256.map b32.map b64.map example.map hex.map oct.map
 
