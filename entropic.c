@@ -26,7 +26,7 @@
  * http://www.isthe.com/chongo/index.html
  * https://github.com/lcn2
  *
- * Share and Enjoy!     :-)
+ * Share and enjoy!  :-)
  */
 
 
