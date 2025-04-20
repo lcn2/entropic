@@ -17,7 +17,7 @@ sudo make install clobber
 ## entropic
 
 ```sh
-/usr/local/bin/entropic -m /usr/local/share/entropic/7bit.map Makefile
+$ /usr/local/bin/entropic -m /usr/local/share/entropic/7bit.map Makefile
 
 Entropy report:
 record count: 121 with 224 bits: high entropy: 219.721914
@@ -29,7 +29,7 @@ high, median and low entropy: 219.721914 185.790452 151.858990
 ## ent_binary
 
 ```sh
-/usr/local/bin/ent_binary /usr/local/bin/ent_binary
+$ /usr/local/bin/ent_binary /usr/local/bin/ent_binary
 
 Entropy report:
 record count: 52 with 8192 bits: high entropy: 5976.578986
@@ -43,7 +43,7 @@ high, median and low entropy: 5976.578986 3971.056411 1965.533835
 
 ## entropic
 
-```sh
+```
 /usr/local/bin/entropic [-h] [-v verbose] [-c rept_cycle] [-b bit_depth]
 	[-B back_history] [-f depth_factor] [-r rec_size] [-k]
 	[-m map_file] [-C] input_file
@@ -114,7 +114,7 @@ entropic version: 1.17.1 2025-05-05
 
 ## ent_binary
 
-```sh
+```
 /usr/local/bin/ent_binary [-h] [-v verbose] [-V] [-c rept_cycle] [-b bit_depth]
 	[-B back_history] [-f depth_factor] [-r rec_size]
 	input_file
